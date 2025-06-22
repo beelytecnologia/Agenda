@@ -1,0 +1,57 @@
+.container {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.loading, .no-bookings, .error-message {
+  text-align: center;
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+}
+
+.error-message {
+  color: red;
+  border-color: red;
+  background-color: #ffebee;
+}
+
+.bookings-list {
+  margin-top: 20px;
+}
+
+.booking-card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.booking-card h4 {
+  margin-top: 0;
+  color: #333;
+}
+
+.booking-card p {
+  margin: 5px 0;
+  color: #555;
+}
+
+.booking-card hr {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin: 15px 0;
+}
+
+button[pButton] {
+  margin-top: 10px;
+}
+
+a[pButton] {
+  margin-bottom: 20px; /* Adiciona espaço abaixo do botão "Novo Agendamento" */
+  display: inline-block; /* Garante que a margem seja aplicada corretamente */
+}

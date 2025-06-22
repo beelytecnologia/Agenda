@@ -1,0 +1,258 @@
+/*  ========== RESET + FONTE  ==========  */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  color: #000;
+
+}
+
+/*  ========== CARD CENTRAL  ==========  */
+app-schedule {
+  background: #fff;
+  display: block;
+}
+
+/*  ========== CABEÇALHO PADRÃO  ==========  */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.2rem;
+  border-bottom: 1px solid #eef1f4;
+  min-width: auto;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 1.25rem
+}
+
+/*  ========== TABS “Agendados / Anteriores”  ========== */
+.p-tabview-nav {
+  border: none;
+  display: flex;
+  justify-content: space-around
+}
+
+.p-tabview-nav li {
+  flex: 1;
+  text-align: center
+}
+
+.p-tabview-nav-link {
+  border: none;
+  padding: 1rem 0;
+  color: #000;
+  font-weight: 500
+}
+
+.p-tabview-nav-link.p-highlight {
+  border-bottom: 3px solid #000;
+}
+
+/*  ========== BOTÃO “+ Novo agendamento”  ========== */
+.new-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #000;
+  color: #fff;
+  font-weight: 600;
+  padding: 1.15rem 0;
+  text-align: center;
+  font-size: 1rem;
+}
+
+/*  ========== ESTADO VAZIO  ========== */
+.empty-box {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9ea2a7
+}
+
+.empty-box .big-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem
+}
+
+/*  ========== CARTÕES SELETORES  ========== */
+.select-card {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  background: #fff;
+  padding: 1rem;
+  margin-bottom: 1.1rem;
+  cursor: pointer
+}
+
+.select-card i {
+  font-size: 1.35rem;
+  color: #000
+}
+
+/*  ========== TOTAL + BOTÃO “Agendar”  ========== */
+.total-box {
+  margin: 2.5rem 0 1rem 0;
+  font-size: 1rem
+}
+
+.total-box b {
+  font-size: 1.05rem
+}
+
+.btn-agendar {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #666;
+  /* cinza escuro inativo */
+  color: #fff;
+  font-weight: 600;
+  padding: 1.15rem 0
+}
+
+.btn-agendar:not(:disabled) {
+  background: #000
+}
+
+/*  ========== BOTTOM-SHEET (PrimeNG Dialog) ========== */
+.p-dialog-mask {
+  background: rgba(0, 0, 0, .55)
+}
+
+.bottom-sheet .p-dialog {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  width: 100vw !important;
+  max-width: none;
+  border-radius: 16px 16px 0 0;
+  padding: 1.5rem 1.25rem
+}
+
+.bottom-sheet .p-dialog-header {
+  display: none
+}
+
+.handle {
+  width: 60px;
+  height: 4px;
+  border-radius: 3px;
+  background: #ccc;
+  margin: 0 auto 1rem
+}
+
+/*  ========== LISTAS GENÉRICAS  ========== */
+.select-list {
+  list-style: none
+}
+
+.select-list li {
+  padding: 10px;
+  border-bottom: 1px solid #f3f3f3;
+  cursor: pointer;
+}
+
+.select-list {
+  background-color: rgb(241, 241, 241);
+  border-radius: 10px;
+
+
+}
+
+.select-list li:last-child {
+  border-bottom: none
+}
+
+.select-list li:hover {
+  background: #f5f6f7
+}
+
+.bold {
+  font-weight: 600
+}
+
+/*  ========== GRID PROFISSIONAIS  ========== */
+.profs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  text-align: center
+}
+
+.profs-grid img {
+  width: 90px;
+  height: 90px;
+  border-radius: 8px;
+  object-fit: cover
+}
+
+.profs-grid span {
+  margin-top: .55rem;
+  font-size: .82rem;
+  font-weight: 500
+}
+
+/*  ========== SERVIÇOS  ========== */
+.service-card {
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem
+}
+
+.price {
+  font-size: .85rem;
+  color: #575757;
+  margin-top: .25rem
+}
+
+.tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: #0044ff;
+  color: #fff;
+  font-size: .6rem;
+  padding: .25rem .5rem;
+  border-radius: 4px 0 4px 0
+}
+
+/*  ========== UTILIDADES (margin/padding rápidas)  ========== */
+.p-4 {
+  padding: 1.25rem
+}
+
+.mb-3 {
+  margin-bottom: 1rem
+}
+
+.mb-4 {
+  margin-bottom: 1.25rem
+}
+
+.mt-6 {
+  margin-top: 2rem
+}
+
+.w-full {
+  width: 100%
+}
+
+.text-center {
+  text-align: center
+}

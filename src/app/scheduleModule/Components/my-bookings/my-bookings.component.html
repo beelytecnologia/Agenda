@@ -1,0 +1,39 @@
+<div class="container">
+  <h2>Meus Agendamentos</h2>
+  <a routerLink="/schedule/teste-insano" pButton label="Novo Agendamento" icon="pi pi-plus" class="p-mb-3"></a>
+
+  <div *ngIf="isLoading()" class="loading">
+    <p>Carregando agendamentos...</p>
+    <!-- Você pode adicionar um spinner aqui -->
+  </div>
+
+  <div *ngIf="errorLoading()" class="error-message">
+    <p>{{ errorLoading() }}</p>
+    <button pButton label="Tentar Novamente" (click)="loadBookings()"></button>
+  </div>
+
+  <div *ngIf="!isLoading() && !errorLoading() && bookings().length === 0" class="no-bookings">
+    <p>Nenhum agendamento encontrado.</p>
+  </div>
+
+    <div *ngIf="!isLoading() && !errorLoading() && bookings().length > 0" class="bookings-list">
+      <div *ngFor="let booking of bookings(); let isLast = last" class="booking-card">
+        <h4>{{ booking.cliente_nome || 'Cliente não informado' }}</h4>
+        <p><strong>Serviço:</strong> {{ booking.agend_servico?.nome || 'N/A' }}</p>
+        <p><strong>Profissional:</strong> {{ booking.agend_profissional?.nome || 'N/A' }}</p>
+        <p><strong>Filial:</strong> {{ booking.agend_filial?.nome || 'N/A' }}</p>
+        <p><strong>Início:</strong> {{ formatDate(booking.inicio) }}</p>
+        <p><strong>Fim:</strong> {{ formatDate(booking.fim) }}</p>
+        <p><strong>ID:</strong> {{ booking.id }}</p>
+        <button pButton
+                type="button"
+                label="Cancelar Agendamento"
+                icon="pi pi-times"
+                class="p-button-danger"
+                (click)="cancelBooking(booking)"
+                [disabled]="!booking.cancel_hash">
+        </button>
+        <hr *ngIf="!isLast">
+      </div>
+    </div>
+  </div>
