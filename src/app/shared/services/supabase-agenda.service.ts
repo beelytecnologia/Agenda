@@ -56,21 +56,28 @@ export class SupabaseAgendaService {
    * ----------------------------------------------------------- */
   async loadEmpresaComTudo(slug: string) {
     const { data, error } = await this.supabase
-      .from('agend_empresa')
-      .select(`
+    .from('agend_empresa')
+    .select(`
+      *,
+      agend_filial (
         *,
-        agend_filial (
+        agend_profissional (
           *,
-          agend_profissional (*)
-        ),
-        agend_servico(*)
-      `)
-      .eq('slug', slug)
-      .single();
+          agend_servico (
+            id, nome, duracao_min, preco
+          )
+        )
+      )
+    `)
+    .eq('slug', slug)
+    .maybeSingle();
+
 
     if (error) throw error;
+    if (!data) throw new Error('Empresa não encontrada.');
     return data;
   }
+
 
   /* -----------------------------------------------------------
    * 2. Cria agendamento e devolve hashes + id

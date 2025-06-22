@@ -91,16 +91,37 @@
 </p-dialog>
 
 <!-- PROFISSIONAIS -->
-<p-dialog [(visible)]="profDlgVisible" modal contentStyleClass="bottom-sheet" [style]="{ background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '337px', }"
-[maskStyle]="{ 'backdrop-filter': 'blur(5px)', backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
+<!-- PROFISSIONAIS -->
+<p-dialog [(visible)]="profDlgVisible"
+          modal
+          contentStyleClass="bottom-sheet"
+          [style]="{ background: 'white', padding: '15px', borderRadius: '8px',
+                     display: 'flex', flexDirection: 'column', gap: '15px',
+                     minWidth: '337px' }"
+          [maskStyle]="{ 'backdrop-filter': 'blur(5px)',
+                         backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
+
   <h3 class="text-center mb-3">Selecione o profissional</h3>
+
   <div class="profs-grid">
     <div *ngFor="let p of profDaFilial()" (click)="chooseProf(p)">
-      <img [src]="p.foto || 'https://via.placeholder.com/90'" alt="{{ p.nome }}">
+
+      <!-- imagem OU ícone fallback -->
+      <ng-container *ngIf="p.foto; else noPic">
+        <img [src]="p.foto" alt="{{ p.nome }}">
+      </ng-container>
+
+      <ng-template #noPic>
+        <div class="avatar-fallback">
+          <i class="fas fa-user"></i>
+        </div>
+      </ng-template>
+
       <span>{{ p.nome }}</span>
     </div>
   </div>
 </p-dialog>
+
 
 <!-- SERVIÇOS -->
 <p-dialog [(visible)]="servDlgVisible" modal contentStyleClass="bottom-sheet"      [style]="{ background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '337px', }"
@@ -131,7 +152,7 @@
 <p-dialog [(visible)]="horaDlgVisible"
           modal
           contentStyleClass="bottom-sheet"
-          [style]="{ background:'#fff', padding:'20px', borderRadius:'14px', width:'330px', minHeight:'300px' }"
+          [style]="{ background:'#fff', padding:'20px', borderRadius:'14px', width:'400px', minHeight:'300px' }"
           [maskStyle]="{ 'backdrop-filter':'blur(5px)', background:'rgba(0,0,0,.15)' }">
 
 
