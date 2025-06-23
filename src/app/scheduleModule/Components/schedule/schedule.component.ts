@@ -55,7 +55,8 @@ export class ScheduleComponent implements OnInit {
   selectedHora   = signal<string|null>(null);
 
   /* dias/horas gerados */
-  weekdays = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  weekdays = signal<string[]>([]);
+
   days: { date:Date; disabled:boolean }[] = [];
   horas: string[] = [];
 
@@ -90,26 +91,35 @@ export class ScheduleComponent implements OnInit {
 
   /** Gera próximos 14 dias exibindo apenas os dias permitidos
    *  segundo `horarios_padrao`. */
-  private generateDays(){
+  private generateDays(): void {
     const prof = this.selectedProf();
-    if(!prof){ this.days=[]; return; }
+    if (!prof) { this.days = []; this.weekdays.set([]); return; }
 
     const hp = this.parseHorariosPadrao((prof as any).horarios_padrao);
 
+    /* dias permitidos ---------------------------------------- */
     const diasAceitos = new Set<number>();
-    if(hp.diasUteis)   diasAceitos.add(1).add(2).add(3).add(4).add(5);
-    if(hp.sabado)      diasAceitos.add(6);
-    if(hp.domingo)     diasAceitos.add(0);
+    if (hp.diasUteis) diasAceitos.add(1).add(2).add(3).add(4).add(5);
+    if (hp.sabado)    diasAceitos.add(6);
+    if (hp.domingo)   diasAceitos.add(0);
 
+    /* hoje  → hoje + 6 --------------------------------------- */
     const hoje = new Date();
-    const out: {date:Date; disabled:boolean}[] = [];
-    for(let i=0;i<14;i++){
-      const d = new Date(hoje); d.setDate(hoje.getDate()+i);
-      const dow = d.getDay();                     // 0‑6
-      out.push({ date:d, disabled: !diasAceitos.has(dow) });
+    const out: { date: Date; disabled: boolean }[] = [];
+    const heads: string[] = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(hoje); d.setDate(hoje.getDate() + i);
+      const dow = d.getDay();                           // 0-6
+      out.push({ date: d, disabled: !diasAceitos.has(dow) });
+
+      /* cabeçalho alinhado      0        1      2    ...       */
+      heads.push(['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dow]);
     }
     this.days = out;
+    this.weekdays.set(heads);
   }
+
 
 
 private generateHorarios(date: Date): void {

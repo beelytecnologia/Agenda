@@ -161,7 +161,7 @@
       <div class="custom-calendar">
       <h3 class="dlg-h3">Selecione data e hora</h3>
       <div class="weekdays">
-        <span *ngFor="let day of weekdays">{{ day }}</span>
+        <span *ngFor="let day of weekdays()">{{ day }}</span>
       </div>
       <div class="days">
         <button *ngFor="let day of days"

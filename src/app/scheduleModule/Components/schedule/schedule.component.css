@@ -42,7 +42,7 @@ ul{
 .days {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 7px;
   justify-content: center;
 }
 
