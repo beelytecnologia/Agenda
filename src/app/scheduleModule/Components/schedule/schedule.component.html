@@ -9,7 +9,7 @@
   </div>
 
   <!-- Tabs -->
-  <ul class="tabs p-4" >
+  <ul class="tabs p-4">
     <li [class.active]="tabIndex===0" (click)="tabIndex=0">Agendados</li>
     <li [class.active]="tabIndex===1" (click)="tabIndex=1">Anteriores</li>
   </ul>
@@ -21,15 +21,13 @@
   </div>
 
   <!-- Botão -->
-   <div class="p-4">  <button class="new-btn " (click)="openCreate()" >+ Novo agendamento</button>
-   </div>
+  <div class="p-4"> <button class="new-btn " (click)="openCreate()">+ Novo agendamento</button>
+  </div>
 </div>
 
 
 <div class="header-row mb-3" *ngIf="view == 'create'" style="width: 100%;">
-  <button pButton icon="fas fa-arrow-left"
-          class="p-button-text"
-          (click)="backToList()"></button>
+  <button pButton icon="fas fa-arrow-left" class="p-button-text" (click)="backToList()"></button>
   <span class="title">Novo Agendamento</span>
   <i class="fas fa-user"></i> <!-- Ícone de usuário alterado -->
 </div>
@@ -46,7 +44,7 @@
   <!-- PROFISSIONAL -->
   <div class="select-card" (click)="profDlgVisible = true">
     <i class="fas fa-user"></i>
-      <span>{{ selectedProf()?.nome || 'Selecione um profissional' }}</span>
+    <span>{{ selectedProf()?.nome || 'Selecione um profissional' }}</span>
   </div>
 
   <!-- SERVIÇOS -->
@@ -56,10 +54,12 @@
   </div>
 
   <!-- HORÁRIO -->
-  <div class="select-card" (click)="horaDlgVisible = true">
-    <i class="fas fa-calendar-alt"></i> <!-- Ícone alterado -->
+  <!-- HORÁRIO -->
+  <div class="select-card" (click)="openHoraDlg()">
+    <i class="fas fa-calendar-alt"></i>
     <span>{{ selectedHora() || 'Selecione um horário' }}</span>
   </div>
+
 
   <!-- TOTAL -->
   <p class="mt-6" *ngIf="selectedServs().length">
@@ -76,8 +76,8 @@
 
 <!-- FILIAIS -->
 <p-dialog [(visible)]="filialDlgVisible" modal contentStyleClass="bottom-sheet"
-          [style]="{ background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '337px', }"
-          [maskStyle]="{ 'backdrop-filter': 'blur(5px)', backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
+  [style]="{ background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '337px', }"
+  [maskStyle]="{ 'backdrop-filter': 'blur(5px)', backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
   <h3 class="text-center mb-3">Selecione uma das nossas filiais</h3>
   <ul class="select-list">
     <li *ngFor="let f of filiais()" (click)="chooseFilial(f)">
@@ -92,13 +92,9 @@
 
 <!-- PROFISSIONAIS -->
 <!-- PROFISSIONAIS -->
-<p-dialog [(visible)]="profDlgVisible"
-          modal
-          contentStyleClass="bottom-sheet"
-          [style]="{ background: 'white', padding: '15px', borderRadius: '8px',
+<p-dialog [(visible)]="profDlgVisible" modal contentStyleClass="bottom-sheet" [style]="{ background: 'white', padding: '15px', borderRadius: '8px',
                      display: 'flex', flexDirection: 'column', gap: '15px',
-                     minWidth: '337px' }"
-          [maskStyle]="{ 'backdrop-filter': 'blur(5px)',
+                     minWidth: '337px' }" [maskStyle]="{ 'backdrop-filter': 'blur(5px)',
                          backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
 
   <h3 class="text-center mb-3">Selecione o profissional</h3>
@@ -124,13 +120,13 @@
 
 
 <!-- SERVIÇOS -->
-<p-dialog [(visible)]="servDlgVisible" modal contentStyleClass="bottom-sheet"      [style]="{ background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '337px', }"
-[maskStyle]="{ 'backdrop-filter': 'blur(5px)', backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
+<p-dialog [(visible)]="servDlgVisible" modal contentStyleClass="bottom-sheet"
+  [style]="{ background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '337px', }"
+  [maskStyle]="{ 'backdrop-filter': 'blur(5px)', backgroundColor: 'rgba(0, 0, 0, 0.1)' }">
   <h3 class="text-center mb-3">Selecione os serviços</h3>
 
   <!-- ✅ vírgula removida do *ngFor  -->
-  <div *ngFor="let s of servicos()" class="service-card"
-       (click)="toggleServico(s)">
+  <div *ngFor="let s of servicos()" class="service-card" (click)="toggleServico(s)">
 
     <div style="position:relative">
       <strong>{{ s.nome }}</strong>
@@ -139,67 +135,76 @@
     </div>
 
 
-    <i
-       [ngClass]="isServicoSelected(s) ? 'fas fa-check-circle' : 'far fa-circle'"> <!-- Classes de ícone alteradas -->
+    <i [ngClass]="isServicoSelected(s) ? 'fas fa-check-circle' : 'far fa-circle'"> <!-- Classes de ícone alteradas -->
     </i>
   </div>
 
-  <button pButton label="OK" class="w-full mt-3"
-          (click)="servDlgVisible = false"></button>
+  <button pButton label="OK" class="w-full mt-3" (click)="servDlgVisible = false"></button>
 </p-dialog>
 
-<!-- HORÁRIOS -->
-<p-dialog [(visible)]="horaDlgVisible"
-          modal
-          contentStyleClass="bottom-sheet"
-          [style]="{ background:'#fff', padding:'20px', borderRadius:'14px', width:'400px', minHeight:'300px' }"
-          [maskStyle]="{ 'backdrop-filter':'blur(5px)', background:'rgba(0,0,0,.15)' }">
+<!-- DIALOG · Data → Horário -->
+<p-dialog [(visible)]="horaDlgVisible" modal contentStyleClass="bottom-sheet" [style]="{ background:'#fff', padding:'20px', borderRadius:'14px',
+  width:'400px', minHeight:'300px' }" [maskStyle]="{ 'backdrop-filter':'blur(5px)',
+  background:'rgba(0,0,0,.15)' }">
 
-
-  <!-- =================  PASSO 1 : DATA  ================= -->
-  <ng-container *ngIf="!selectedDate()">
-      <div class="custom-calendar">
-      <h3 class="dlg-h3">Selecione data e hora</h3>
-      <div class="weekdays">
-        <span *ngFor="let day of weekdays()">{{ day }}</span>
-      </div>
-      <div class="days">
-        <button *ngFor="let day of days"
-                [disabled]="day.disabled"
-                class="day"
-                (click)="chooseDate(day.date)">
-          {{ day.date.getDate() }}
-        </button>
-      </div>
+  <!-- PASSO 1 · calendário -->
+  <div class="mini-cal" *ngIf="!selectedDate()">
+    <div class="week-header">
+      <span *ngFor="let w of ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']">{{ w }}</span>
     </div>
-  </ng-container>
 
-  <!-- =================  PASSO 2 : HORÁRIOS  ============== -->
-  <ng-container *ngIf="selectedDate()">
-    <div class="custom-calendar">
-      <h3 class="dlg-h3">Horários disponíveis no dia {{ selectedDate()?.toLocaleDateString('pt-BR') }}</h3>
-      <div class="slots">
-        <button *ngFor="let h of horas"
-                class="slot"
-                [disabled]="false"
-                (click)="chooseHora(h)">
-          {{ h }}
+    <div class="days-grid">
+      <ng-container *ngFor="let c of days">
+        <!-- célula vazia p/ alinhamento -->
+        <span *ngIf="!c.date" class="blank"></span>
+
+        <!-- dia válido -->
+        <button *ngIf="c.date" class="day-btn" [disabled]="c.disabled"
+          [class.sel]="selectedDate() && dayjs(c.date).isSame(selectedDate(),'day')" (click)="chooseDate(c.date)">
+          {{ c.date.getDate() }}
         </button>
-      </div>
-      <ng-container *ngIf="horas.length === 0">
-        <p class="text-center muted">Nenhum horário disponível.</p>
       </ng-container>
     </div>
-  </ng-container>
+  </div>
 
+  <!-- PASSO 2 · horários -->
+  <div *ngIf="selectedDate()">
+    <h4 class="mb-2">
+      Horários em {{ selectedDate()?.toLocaleDateString('pt-BR') }}
+    </h4>
 
+    <div class="slots">
+      <button *ngFor="let h of horas" class="slot" (click)="chooseHora(h)">
+        {{ h }}
+      </button>
+    </div>
+
+    <p *ngIf="horas.length === 0" class="text-center muted mt-3">
+      Nenhum horário disponível.
+    </p>
+  </div>
 </p-dialog>
 
 
+<!-- NOVO ❶ : diálogo de sucesso ----------------------------------- -->
+<p-dialog [(visible)]="successDlgVisible" styleClass="success-modal" modal header="Agendamento confirmado!"
+  [style]="{ width: '350px' }" [contentStyle]="{ 'text-align': 'center' }">
+  <i class="fas fa-check-circle icon-ok"></i>
 
-<button pButton label="Agendar" *ngIf="view == 'create'"
-  class="w-full"
-  style="position: fixed; bottom: 20px; left: 16px; right: 16px; background-color: black; color: white; height: 50px; border-radius: 10px; z-index: 1000; max-width: calc(100% - 32px); margin: 0 auto;"
-  [disabled]="disabledAgendar()"
-  (click)="confirm()">
+  <h3 class="title">Tudo certo 🚀</h3>
+  <p class="subtitle">
+    Em instantes você receberá o link para visualizar<br>
+    ou cancelar o seu horário.
+  </p>
+
+  <button pButton label="Fechar" class="w-full mt-3" (click)="successDlgVisible = false"></button>
+</p-dialog>
+
+
+<!-- ALTERAÇÃO ❷ : botão “Agendar” agora usa isSaving/disabledAgendar -->
+<button pButton label="" *ngIf="view=='create'" class="w-full" style="position:fixed;bottom:20px;left:16px;right:16px;background:#000;color:#fff;
+         height:50px;border-radius:10px;z-index:1000;max-width:calc(100% - 32px);
+         margin:0 auto;" [disabled]="disabledAgendar()" (click)="confirm()">
+  <ng-container *ngIf="!isSaving; else loadingTxt">agendar</ng-container>
+  <ng-template #loadingTxt>Salvando…</ng-template>
 </button>

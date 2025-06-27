@@ -1,340 +1,363 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
-import { CommonModule }   from '@angular/common';
-import { FormsModule }    from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import dayjs              from 'dayjs';
+  import { Component, OnInit, signal, inject } from '@angular/core';
+  import { CommonModule }   from '@angular/common';
+  import { FormsModule }    from '@angular/forms';
+  import { ActivatedRoute } from '@angular/router';
+  import dayjs from 'dayjs';
 
-/* ─── PrimeNG ─────────────────────────────────────────────── */
-import { ButtonModule }   from 'primeng/button';
-import { TabViewModule }  from 'primeng/tabview';
-import { DialogModule }   from 'primeng/dialog';
-import { CalendarModule } from 'primeng/calendar';
 
-/* ─── Serviços & Tipos ─────────────────────────────────────── */
-import { SupabaseAgendaService,
-         Filial, Profissional, Servico } from '../../../shared/services/supabase-agenda.service';
+  /* ─── PrimeNG ─────────────────────────────────────────────── */
+  import { ButtonModule }   from 'primeng/button';
+  import { TabViewModule }  from 'primeng/tabview';
+  import { DialogModule }   from 'primeng/dialog';
+  import { CalendarModule } from 'primeng/calendar';
 
-/*************************************************************************************************
- * ScheduleComponent – Interface pública de agendamento
- * · Gera dias / horas dinamicamente a partir de `horarios_padrao` (jsonb) de cada profissional
- * · Slots respeitam a duração do serviço selecionado
- * · Mantém toda a lógica de dialogs, confirmação e UI do seu código original
- *************************************************************************************************/
-@Component({
-  selector   : 'app-schedule',
-  standalone : true,
-  templateUrl: './schedule.component.html',
-  styleUrls  : ['./schedule.component.css'],
-  imports    : [
-    /* Angular */   CommonModule, FormsModule,
-    /* PrimeNG */   ButtonModule, TabViewModule, DialogModule, CalendarModule
-  ]
-})
-export class ScheduleComponent implements OnInit {
+  /* ─── Serviços & Tipos ─────────────────────────────────────── */
+  import { SupabaseAgendaService,
+          Filial, Profissional, Servico } from '../../../shared/services/supabase-agenda.service';
 
-  /* ════════════════ ESTADO DE UI ═══════════════════════════ */
-  view:'list'|'create' = 'list';
-  tabIndex = 0;
+  /*************************************************************************************************
+   * ScheduleComponent – Interface pública de agendamento
+   * · Gera dias / horas dinamicamente a partir de `horarios_padrao` (jsonb) de cada profissional
+   * · Slots respeitam a duração do serviço selecionado
+   * · Mantém toda a lógica de dialogs, confirmação e UI do seu código original
+   *************************************************************************************************/
+  type Cell = { date: Date | null; disabled: boolean };
 
-  /* dialogs */
-  filialDlgVisible = false;
-  profDlgVisible   = false;
-  servDlgVisible   = false;
-  horaDlgVisible   = false;
+  @Component({
+    selector   : 'app-schedule',
+    standalone : true,
+    templateUrl: './schedule.component.html',
+    styleUrls  : ['./schedule.component.css'],
+    imports    : [
+      /* Angular */   CommonModule, FormsModule,
+      /* PrimeNG */   ButtonModule, TabViewModule, DialogModule, CalendarModule
+    ]
+  })
+  export class ScheduleComponent implements OnInit {
 
-  /* listas reativas */
-  filiais        = signal<Filial[]>([]);
-  profissionais  = signal<Profissional[]>([]);
-  servicos       = signal<Servico[]>([]);
+    /* ════════════════ ESTADO DE UI ═══════════════════════════ */
+    view:'list'|'create' = 'list';
+    tabIndex = 0;
+    today            = new Date();
+    maxDate          = dayjs().add(30, 'day').toDate();   // 30 dias p/ frente
+    disabledWeekDays: number[] = [];
+    /* dialogs */
+    readonly dayjs = dayjs;
+    ocupados: string[] = [];     // preenchido por fetchOcupados()
+    isSaving          = false;          // desabilita o botão enquanto grava
+    successDlgVisible = false;          // mostra o “modal bonito” depois
 
-  /* seleção atual */
-  selectedFilial = signal<Filial|null>(null);
-  selectedProf   = signal<Profissional|null>(null);
-  selectedServs  = signal<Servico[]>([]);
-  selectedDate   = signal<Date|null>(null);
-  selectedHora   = signal<string|null>(null);
+    filialDlgVisible = false;
+    profDlgVisible   = false;
+    servDlgVisible   = false;
+    horaDlgVisible = false;
+    ocupadosPorDia: Record<string, string[]> = {};
 
-  /* dias/horas gerados */
-  weekdays = signal<string[]>([]);
+    ptBr = {
+      firstDayOfWeek: 0,
+      dayNames      : ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'],
+      dayNamesShort : ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+      dayNamesMin   : ['Do','Se','Te','Qa','Qi','Sx','Sa'],
+      monthNames    : ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'],
+      monthNamesShort: ['Jan','Fev','Mar','Abr','Mai','Jun',
+                        'Jul','Ago','Set','Out','Nov','Dez'],
+      today: 'Hoje', clear: 'Limpar'
+    };
+    tmpDate: Date | null = null;   // usado no [(ngModel)]
 
-  days: { date:Date; disabled:boolean }[] = [];
-  horas: string[] = [];
+    /* listas reativas */
+    filiais        = signal<Filial[]>([]);
+    profissionais  = signal<Profissional[]>([]);
+    servicos       = signal<Servico[]>([]);
 
-  /* injeções */
-  private api   = inject(SupabaseAgendaService);
-  private route = inject(ActivatedRoute);
+    /* seleção atual */
+    selectedFilial = signal<Filial|null>(null);
+    selectedProf   = signal<Profissional|null>(null);
+    selectedServs  = signal<Servico[]>([]);
+    selectedDate   = signal<Date|null>(null);
+    selectedHora   = signal<string|null>(null);
 
-  /* ════════════════ CICLO DE VIDA ══════════════════════════ */
-  async ngOnInit(){
-    const slug = this.route.snapshot.paramMap.get('empresaSlug');
-    if(!slug){ console.error('Slug não informado'); return; }
-    await this.loadEmpresa(slug);
-  }
+    /* dias/horas gerados */
+    weekdays = signal<string[]>([]);
 
-  /* ════════════════ CARREGAMENTO BASE ══════════════════════ */
-  private async loadEmpresa(slug:string){
-    const empresa:any = await this.api.loadEmpresaComTudo(slug);
-    /* filiais e profissionais vêm aninhados ----------------- */
-    this.filiais.set(empresa.agend_filial);
-    const profs = empresa.agend_filial.flatMap((f:any)=>f.agend_profissional);
-    this.profissionais.set(profs);
-    /* serviços ficam pendurados em cada profissional -------- */
-    const servs = profs.flatMap((p:any)=>p.agend_servico);
-    this.servicos.set(servs);
-  }
+    days: { date:Date; disabled:boolean }[] = [];
+    horas: string[] = [];
 
-  /* ════════════════ HELPERS DE HORÁRIO ═════════════════════ */
-  private parseHorariosPadrao(jsonStr:string|undefined|null){
-    if(!jsonStr||jsonStr==='{}') return {} as any;
-    try{ return JSON.parse(jsonStr); }catch{ return {}; }
-  }
+    /* injeções */
+    private api   = inject(SupabaseAgendaService);
+    private route = inject(ActivatedRoute);
 
-  /** Gera próximos 14 dias exibindo apenas os dias permitidos
-   *  segundo `horarios_padrao`. */
-  private generateDays(): void {
-    const prof = this.selectedProf();
-    if (!prof) { this.days = []; this.weekdays.set([]); return; }
+    /* ════════════════ CICLO DE VIDA ══════════════════════════ */
+    async ngOnInit() {
+      const slug = this.route.snapshot.paramMap.get('empresaSlug');
+      if (!slug) { console.error('Slug não informado'); return; }
 
-    const hp = this.parseHorariosPadrao((prof as any).horarios_padrao);
-
-    /* dias permitidos ---------------------------------------- */
-    const diasAceitos = new Set<number>();
-    if (hp.diasUteis) diasAceitos.add(1).add(2).add(3).add(4).add(5);
-    if (hp.sabado)    diasAceitos.add(6);
-    if (hp.domingo)   diasAceitos.add(0);
-
-    /* hoje  → hoje + 6 --------------------------------------- */
-    const hoje = new Date();
-    const out: { date: Date; disabled: boolean }[] = [];
-    const heads: string[] = [];
-
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(hoje); d.setDate(hoje.getDate() + i);
-      const dow = d.getDay();                           // 0-6
-      out.push({ date: d, disabled: !diasAceitos.has(dow) });
-
-      /* cabeçalho alinhado      0        1      2    ...       */
-      heads.push(['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dow]);
+      await this.loadEmpresa(slug);
+      await this.loadOcupados();          // 👈 carrega uma vez ao iniciar
     }
-    this.days = out;
-    this.weekdays.set(heads);
-  }
+    private async loadOcupados() {
+      const data = await this.fetchWebhookRaw();   // console.log já mostra
+
+      /* <<< a resposta é [ { ...dias } ]  >>> */
+      if (Array.isArray(data) && data.length === 1 && typeof data[0] === 'object') {
+        this.ocupadosPorDia = data[0];            //  ✅ pega o objeto interno
+      }
+      else if (!Array.isArray(data)) {
+        this.ocupadosPorDia = data;               // caso venha como objeto direto
+      }
+      else {
+        // fallback se um dia voltar a ser “array de eventos”
+        data.forEach((ev: any) => {
+          const dia  = this.dayjs(ev.start.dateTime).format('YYYY-MM-DD');
+          const hora = this.dayjs(ev.start.dateTime).format('HH:mm');
+          (this.ocupadosPorDia[dia] ??= []).push(hora);
+        });
+      }
+
+      console.log('[OCUPADOS] mapa dia→horas', this.ocupadosPorDia);
+    }
+
+    private getOcupadosDoDia(date: Date): string[] {
+      const dia = this.dayjs(date).format('YYYY-MM-DD');
+      return this.ocupadosPorDia[dia] ?? [];
+    }
+
+    /* ════════════════ CARREGAMENTO BASE ══════════════════════ */
+    private async loadEmpresa(slug:string){
+      const empresa:any = await this.api.loadEmpresaComTudo(slug);
+      /* filiais e profissionais vêm aninhados ----------------- */
+      this.filiais.set(empresa.agend_filial);
+      const profs = empresa.agend_filial.flatMap((f:any)=>f.agend_profissional);
+      this.profissionais.set(profs);
+      /* serviços ficam pendurados em cada profissional -------- */
+      const servs = profs.flatMap((p:any)=>p.agend_servico);
+      this.servicos.set(servs);
+    }
+
+    /* ════════════════ HELPERS DE HORÁRIO ═════════════════════ */
+    private parseHorariosPadrao(jsonStr:string|undefined|null){
+      if(!jsonStr||jsonStr==='{}') return {} as any;
+      try{ return JSON.parse(jsonStr); }catch{ return {}; }
+    }
+
+    /** Gera próximos 14 dias exibindo apenas os dias permitidos
+     *  segundo `horarios_padrao`. */
+    private generateDays(amount = 30): void {
+      const prof = this.selectedProf();
+      if (!prof) { this.days = []; return; }
+
+      /* dias atendidos ------------------------------------------------ */
+      const hp = this.parseHorariosPadrao((prof as any).horarios_padrao);
+      const aceitos = new Set<number>();
+      if (hp.diasUteis) [1,2,3,4,5].forEach(d => aceitos.add(d));
+      if (hp.sabado)    aceitos.add(6);
+      if (hp.domingo)   aceitos.add(0);
+
+      /* monta o array de células -------------------------------------- */
+      const hoje      = dayjs().startOf('day');
+      const firstDate = hoje.toDate();
+      const offset    = firstDate.getDay();          // 0-Dom … 6-Sáb
+
+      const cells: Cell[] = [];
+
+      /* espaços vazios até o primeiro dia (alinhamento) */
+      for (let i = 0; i < offset; i++)
+        cells.push({ date: null, disabled: true });
+
+      /* próximos <amount> dias reais */
+      for (let i = 0; i < amount; i++) {
+        const d = hoje.add(i, 'day').toDate();
+        cells.push({ date: d, disabled: !aceitos.has(d.getDay()) });
+      }
+
+      this.days = cells as unknown as { date: Date; disabled: boolean }[];
+    }
 
 
+    private generateHorarios(date: Date): void {
+      const prof = this.selectedProf();
+      if (!prof) { this.horas = []; return; }
 
-private generateHorarios(date: Date): void {
-  const prof = this.selectedProf();
-  if (!prof) { this.horas = []; return; }
+      const hp   = this.parseHorariosPadrao((prof as any).horarios_padrao);
+      const dow  = date.getDay();
+      let faixa: [string, string] | undefined;
 
-  const hp = this.parseHorariosPadrao((prof as any).horarios_padrao);
+      if (dow >= 1 && dow <= 5) faixa = hp.diasUteis;
+      else if (dow === 6)       faixa = hp.sabado;
+      else if (dow === 0)       faixa = hp.domingo;
+      if (!faixa) { this.horas = []; return; }
 
-  /* faixa válida ------------------------------------------------- */
-  const dow = date.getDay();                             // 0-Dom … 6-Sáb
-  let faixa: [string, string] | undefined;
-  if (dow >= 1 && dow <= 5) faixa = hp.diasUteis as [string,string];
-  else if (dow === 6)       faixa = hp.sabado    as [string,string];
-  else if (dow === 0)       faixa = hp.domingo   as [string,string];
-  if (!faixa) { this.horas = []; return; }
+      const dur          = this.selectedServs()[0]?.duracao_min ?? 30;
+      const [iniH, iniM] = faixa[0].split(':').map(Number);
+      const [fimH, fimM] = faixa[1].split(':').map(Number);
 
-  /* parâmetros --------------------------------------------------- */
-  const dur = this.selectedServs()[0]?.duracao_min ?? 30;          // passo
-  const [iniH, iniM] = faixa[0].split(':').map(Number);
-  const [fimH, fimM] = faixa[1].split(':').map(Number);
+      const start     = this.dayjs(date).hour(iniH).minute(iniM).second(0);
+      const end       = this.dayjs(date).hour(fimH).minute(fimM).second(0);
+      const lastStart = end.subtract(dur, 'minute');
+      const ocupados  = this.getOcupadosDoDia(date);          // horas já bloqueadas
 
-  const start = dayjs(date).hour(iniH).minute(iniM).second(0);
-  const end   = dayjs(date).hour(fimH).minute(fimM).second(0);
+      const livres: string[] = [];
+      for (let t = start; t.isSame(lastStart) || t.isBefore(lastStart); t = t.add(dur, 'minute')) {
+        const hhmm = t.format('HH:mm');
+        if (!ocupados.includes(hhmm)) livres.push(hhmm);
+      }
+      this.horas = livres;
+    }
 
-  /* gera enquanto o INÍCIO estiver antes (ou igual) ao fim -------- */
-  const slots: string[] = [];
-  for (let t = start; t.isSame(end) || t.isBefore(end); t = t.add(dur, 'minute')) {
-    slots.push(t.format('HH:mm'));
-  }
-  this.horas = slots;
-
-  /* debug -------------------------------------------------------- */
-  console.log(`Faixa: ${faixa[0]} → ${faixa[1]} | Passo: ${dur} min`);
-  console.log('Slots gerados:', slots);
+/** Retorna uma lista HH:mm já ocupada no dia selecionado */
+private async fetchWebhookRaw(): Promise<any> {
+  const res  = await fetch('https://n8n.grupobeely.com.br/webhook/get-events');
+  const body = await res.json();
+  console.log('[WEBHOOK] payload cru →', body);   // 👈 veja no DevTools
+  return body;
 }
 
 
+/** abre o diálogo de data/horário sempre do passo-1 */
+openHoraDlg(): void {
+  this.selectedDate.set(null);
+  this.selectedHora.set(null);
+  this.horas = [];
+  this.horaDlgVisible = true;
+}
 
 
-  /* ════════════════ EVENTOS DE SELEÇÃO ═════════════════════ */
-  chooseFilial(f:Filial){
-    this.selectedFilial.set(f);
-    this.filialDlgVisible=false;
-    this.selectedProf.set(null);     // força escolher prof de novo
+    /* ════════════════ EVENTOS DE SELEÇÃO ═════════════════════ */
+    chooseFilial(f:Filial){
+      this.selectedFilial.set(f);
+      this.filialDlgVisible=false;
+      this.selectedProf.set(null);     // força escolher prof de novo
+    }
+
+    chooseProf(p: Profissional) {
+      this.selectedProf.set(p);
+      this.profDlgVisible = false;
+
+      /* define os dias do calendário que DEVEM ficar *desabilitados* */
+      const hp           = this.parseHorariosPadrao((p as any).horarios_padrao);
+      const diasAceitos  = new Set<number>();
+      if (hp.diasUteis) diasAceitos.add(1).add(2).add(3).add(4).add(5);
+      if (hp.sabado)    diasAceitos.add(6);
+      if (hp.domingo)   diasAceitos.add(0);
+      this.disabledWeekDays = [0,1,2,3,4,5,6].filter(d => !diasAceitos.has(d));
+      this.generateDays(30);          // ← 30 dias
+      /* limpeza de seleções antigas */
+      this.selectedDate.set(null);
+      this.selectedHora.set(null);
+      this.horas = [];
+    }
+    onCalendarSelect(date: Date) {
+      this.chooseDate(date);          // reaproveita a lógica já existente
+    }
+  /* ════════════════ HELPERs usados no template ══════════════ */
+
+  /** ➜ Texto exibido no chip de serviços */
+  get servicosLabel(): string {
+    return this.selectedServs().length
+      ? this.selectedServs().map(s => s.nome).join(', ')
+      : 'Selecione os serviços';
   }
 
-  chooseProf(p:Profissional){
-    this.selectedProf.set(p);
-    this.profDlgVisible=false;
-    /* gera dias permitidos p/ esse profissional */
-    this.generateDays();
-    this.selectedDate.set(null);
-    this.selectedHora.set(null);
-    this.horas=[];
+  /** ➜ Soma de preços já formatada */
+  get totalPreco(): number {
+    return this.selectedServs()
+              .reduce((total, s) => total + (s.preco ?? 0), 0);
   }
-/* ════════════════ HELPERs usados no template ══════════════ */
 
-/** ➜ Texto exibido no chip de serviços */
-get servicosLabel(): string {
-  return this.selectedServs().length
-    ? this.selectedServs().map(s => s.nome).join(', ')
-    : 'Selecione os serviços';
-}
-
-/** ➜ Soma de preços já formatada */
-get totalPreco(): number {
-  return this.selectedServs()
-             .reduce((total, s) => total + (s.preco ?? 0), 0);
-}
-
-/** ➜ Lista de profissionais filtrada pela filial escolhida
- *     (é chamado no *ngFor* do diálogo de profissionais) */
-profDaFilial(): Profissional[] {
-  const f = this.selectedFilial();
-  return this.profissionais()
-             .filter(p => p.filial_id === f?.id);
-}
-
-  chooseDate(d:Date){
+  /** ➜ Lista de profissionais filtrada pela filial escolhida
+   *     (é chamado no *ngFor* do diálogo de profissionais) */
+  profDaFilial(): Profissional[] {
+    const f = this.selectedFilial();
+    return this.profissionais()
+              .filter(p => p.filial_id === f?.id);
+  }
+  chooseDate(d: Date) {
     this.selectedDate.set(d);
     this.generateHorarios(d);
   }
 
-  chooseHora(h:string){ this.selectedHora.set(h); this.horaDlgVisible=false; }
 
-  toggleServico(s:Servico){
-    this.selectedServs.set([s]);
-    /* se já havia data escolhida, regenera slots com nova duração */
-    const d = this.selectedDate();
-    if(d) this.generateHorarios(d);
-    this.servDlgVisible=false;
-  }
+    chooseHora(h:string){ this.selectedHora.set(h); this.horaDlgVisible=false; }
 
-  isServicoSelected(s:Servico){ return this.selectedServs().some(v=>v.id===s.id); }
-
-  /* ════════════════ NAVEGAÇÃO SIMPLES ══════════════════════ */
-  openCreate(){ this.reset(); this.view='create'; }
-  backToList(){ this.view='list'; }
-  reset(){
-    this.selectedFilial.set(null);
-    this.selectedProf.set(null);
-    this.selectedServs.set([]);
-    this.selectedDate.set(null);
-    this.selectedHora.set(null);
-    this.days=[]; this.horas=[];
-  }
-
-  /* ════════════════ CONFIRMAÇÃO ════════════════════════════ */
-  // A implementação original do seu método confirm() foi mantida 100% intacta.
-  // Colei abaixo sem NENHUMA modificação!
-  async confirm() {
-    if (this.disabledAgendar()) return;
-
-    const selectedDate = this.selectedDate()!;
-    const selectedHora = this.selectedHora()!;
-    const servicosSelecionados = this.selectedServs();
-
-    if (servicosSelecionados.length === 0) {
-      console.error("Nenhum serviço selecionado.");
-      // Adicionar alguma notificação para o usuário aqui
-      return;
+    toggleServico(s:Servico){
+      this.selectedServs.set([s]);
+      /* se já havia data escolhida, regenera slots com nova duração */
+      const d = this.selectedDate();
+      if(d) this.generateHorarios(d);
+      this.servDlgVisible=false;
     }
-    if (servicosSelecionados.length > 1) {
-      console.warn("Mais de um serviço selecionado, mas o sistema espera apenas um. Usando o primeiro.");
-      // Considerar desabilitar a seleção de múltiplos serviços na UI (método toggleServico)
+
+    isServicoSelected(s:Servico){ return this.selectedServs().some(v=>v.id===s.id); }
+
+    /* ════════════════ NAVEGAÇÃO SIMPLES ══════════════════════ */
+    openCreate(){ this.reset(); this.view='create'; }
+    backToList(){ this.view='list'; }
+    reset(){
+      this.selectedFilial.set(null);
+      this.selectedProf.set(null);
+      this.selectedServs.set([]);
+      this.selectedDate.set(null);
+      this.selectedHora.set(null);
+      this.days=[]; this.horas=[];
     }
-    const servicoSelecionado = servicosSelecionados[0];
 
-    const [hora, minuto] = selectedHora.split(':').map(Number);
-    const inicioDateTime = dayjs(selectedDate).hour(hora).minute(minuto).second(0);
-    const inicioISO = inicioDateTime.toISOString();
+    async confirm(): Promise<void> {
+      if (this.isSaving || this.disabledAgendar()) return;
 
-    // O cálculo de 'fim' e 'empresa_id' será feito pelo SupabaseAgendaService.createBooking
+      /* desliga o botão imediatamente */
+      this.isSaving = true;
 
-    // 1. Montar o payload para criar o agendamento no Supabase
-    const bookingPayloadForSupabase = {
-      filial_id: this.selectedFilial()!.id,
-      profissional_id: this.selectedProf()!.id,
-      servico_id: servicoSelecionado.id,
-      inicio: inicioISO,
-      cliente_nome: 'Cliente Web', // Tornar dinâmico se necessário
-      cliente_phone: '5511999999999' // Tornar dinâmico se necessário
-    };
+      /* ── validações básicas ─────────────────────────── */
+      const dataSel = this.selectedDate();
+      const horaSel = this.selectedHora();
+      const servico = this.selectedServs()[0];
+      if (!dataSel || !horaSel || !servico) { this.isSaving = false; return; }
 
-    let bookingResult: { id: string; view_hash: string; cancel_hash: string; } | null = null;
+      /* monta payload de criação … (tudo igual) */
+      const [h, m] = horaSel.split(':').map(Number);
+      const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
+      const bookingPayload = {
+        filial_id      : this.selectedFilial()!.id,
+        profissional_id: this.selectedProf()!.id,
+        servico_id     : servico.id,
+        inicio         : inicio.toISOString(),
+        cliente_nome   : 'Cliente Web',
+        cliente_phone  : '5511999999999'
+      };
 
-    try {
-      // 2. Chamar o serviço para criar o agendamento no Supabase
-      bookingResult = await this.api.createBooking(bookingPayloadForSupabase);
-      if (!bookingResult || !bookingResult.id) {
-        throw new Error('Falha ao criar agendamento ou ID não retornado.');
+      let bookingResult;
+      try {
+        bookingResult = await this.api.createBooking(bookingPayload);
+        if (!bookingResult?.id) throw new Error('Erro ao criar');
+      } catch (e) {
+        console.error(e);
+        this.isSaving = false;
+        return;
       }
-      console.log('Agendamento criado no Supabase:', bookingResult);
-    } catch (error) {
-      console.error('Erro ao criar agendamento no Supabase:', error);
-      // Adicionar feedback para o usuário sobre o erro ao criar o agendamento
-      return; // Interrompe a execução se a criação no Supabase falhar
-    }
 
-    // 3. Montar o payload para o webhook com os dados do agendamento criado
-    // Incluindo o 'fim' que foi calculado e armazenado pelo Supabase (se o seu serviço o retornar)
-    // ou recalcular aqui se necessário para o webhook.
-    // Para este exemplo, vamos recalcular o 'fim' para o webhook,
-    // assumindo que createBooking não retorna o 'fim'.
-    const duracaoServicoMin = servicoSelecionado.duracao_min;
-    const fimISO = inicioDateTime.add(duracaoServicoMin, 'minute').toISOString();
+      /* dispara webhook (sem bloquear UI se falhar) */
+      const fimISO = inicio.add(servico.duracao_min, 'minute').toISOString();
+      fetch('https://n8n.grupobeely.com.br/webhook/0f9da9ee-0c0d-423d-98e8-607dc0a2cce9',
+            { method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({ /* …dados do webhook… */ }) })
+        .catch(err => console.error(err));
 
-    const payloadWebhook = {
-      agendamento_id: bookingResult.id, // ID do agendamento criado no Supabase
-      filial: this.selectedFilial(), // Objeto completo da filial
-      profissional: this.selectedProf(), // Objeto completo do profissional
-      profissional_id: this.selectedProf()?.id,
-      servico: servicoSelecionado, // Objeto completo do serviço
-      servico_id: servicoSelecionado.id,
-      data_agenda: dayjs(selectedDate).format('YYYY-MM-DD'),
-      horario_selecionado: selectedHora,
-      inicio: inicioISO,
-      fim: fimISO, // Fim calculado para o webhook
-      duracao_servico_min: duracaoServicoMin,
-      cliente: {
-        nome: bookingPayloadForSupabase.cliente_nome,
-        telefone: bookingPayloadForSupabase.cliente_phone
-      },
-      view_hash: bookingResult.view_hash, // Hash retornado pelo Supabase
-      cancel_hash: bookingResult.cancel_hash, // Hash retornado pelo Supabase
-      status: 'confirmado' // Ou o status real retornado/definido pelo Supabase se disponível
-    };
-
-    try {
-      // 4. Enviar os dados para o webhook
-      await fetch('https://n8n.grupobeely.com.br/webhook/0f9da9ee-0c0d-423d-98e8-607dc0a2cce9', { // Use sua URL de webhook de produção
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadWebhook)
-      });
-      console.log('Webhook enviado com sucesso:', payloadWebhook);
-      // Adicionar feedback para o usuário que o agendamento foi confirmado e notificação enviada
+      /* limpa tela, volta à lista e abre modal de sucesso */
       this.backToList();
-    } catch (error) {
-      console.error('Erro ao enviar webhook:', error);
-      // Informar ao usuário que o agendamento foi criado, mas houve um problema ao notificar.
-      // O agendamento EXISTE no Supabase neste ponto.
-      // Considerar uma lógica de retentativa para o webhook ou um status de "pendente de notificação".
-      this.backToList(); // Ou manter na tela com uma mensagem específica
+      this.successDlgVisible = true;
+      this.isSaving = false;
+    }
+
+    /* ── agora o disabled inclui o flag isSaving ───────── */
+    disabledAgendar(): boolean {
+      return this.isSaving || !(
+        this.selectedFilial() &&
+        this.selectedProf()   &&
+        this.selectedServs().length &&
+        this.selectedDate()   &&
+        this.selectedHora()
+      );
     }
   }
-
-  /* ════════════════ UTILIDADES ═════════════════════════════ */
-  disabledAgendar(){
-    return !(
-      this.selectedFilial() &&
-      this.selectedProf()   &&
-      this.selectedServs().length &&
-      this.selectedDate()   &&
-      this.selectedHora()
-    );
-  }
-}

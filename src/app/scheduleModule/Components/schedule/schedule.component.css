@@ -42,7 +42,7 @@ ul{
 .days {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
   justify-content: center;
 }
 
@@ -106,3 +106,65 @@ ul{
   display: flex; align-items: center;
   justify-content: center;
 }
+.mini-cal       { display:flex; flex-direction:column; gap:.5rem; }
+.week-header    { display:grid; grid-template-columns:repeat(7,1fr); font-size:.75rem; text-align:center; }
+.days-grid      { display:grid; grid-template-columns:repeat(7,1fr); gap:.25rem; }
+.day-btn        { padding:.5rem 0; border:none; background:#eee; border-radius:6px; font:inherit; }
+.day-btn.sel    { background:#000; color:#fff; }
+.day-btn:disabled { opacity:.3; }
+
+.slots          { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.5rem; }
+.slot           { padding:.5rem 1rem; border-radius:6px; background:#000; color:#fff; border:none; }
+.blank      { visibility:hidden; }
+.days-grid  { display:grid; grid-template-columns:repeat(7,1fr); gap:.25rem; }
+/* máscara um pouco escurecida ------------------------------------------------*/
+:host ::ng-deep .p-dialog-mask.p-component-overlay {
+  background: rgba(0, 0, 0, .35);      /* sem transparência total */
+  backdrop-filter: blur(2px);
+}
+
+/* diálogo “success” ---------------------------------------------------------*/
+:host ::ng-deep .success-modal.p-dialog {
+  border-radius: 14px;
+  overflow: hidden;                    /* cantos arredondados */
+  box-shadow: 0 8px 26px rgba(0,0,0,.20);
+}
+
+/* cabeçalho verde com texto branco */
+:host ::ng-deep .success-modal .p-dialog-header {
+  background: #10b981;                 /* emerald-600 */
+  color: #fff;
+  font-weight: 500;
+  padding: 1rem 1.25rem;
+}
+
+/* remove o “X” padrão do PrimeNG */
+:host ::ng-deep .success-modal .p-dialog-header-icon {
+  display: none;
+}
+
+/* conteúdo ------------------------------------------------------------------*/
+:host ::ng-deep .success-modal .p-dialog-content {
+  background: #fff;
+  padding: 2rem 1.75rem 1.5rem;
+}
+
+:host ::ng-deep .success-modal .icon-ok {
+  font-size: 56px;
+  color: #10b981;
+}
+
+:host ::ng-deep .success-modal .title  { margin: 1rem 0 .5rem; }
+:host ::ng-deep .success-modal .subtitle {
+  color: #4b5563;                      /* gray-600 */
+  font-size: .95rem;
+  line-height: 1.4;
+}
+
+/* rodapé (botão) ------------------------------------------------------------*/
+:host ::ng-deep .success-modal .p-dialog-footer {
+  border: 0;
+  padding: 0 1.75rem 1.75rem;
+}
+
+/* botão fechado – full width já vem do template */
