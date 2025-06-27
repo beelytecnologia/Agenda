@@ -15,12 +15,6 @@
   import { SupabaseAgendaService,
           Filial, Profissional, Servico } from '../../../shared/services/supabase-agenda.service';
 
-  /*************************************************************************************************
-   * ScheduleComponent – Interface pública de agendamento
-   * · Gera dias / horas dinamicamente a partir de `horarios_padrao` (jsonb) de cada profissional
-   * · Slots respeitam a duração do serviço selecionado
-   * · Mantém toda a lógica de dialogs, confirmação e UI do seu código original
-   *************************************************************************************************/
   type Cell = { date: Date | null; disabled: boolean };
 
   @Component({
@@ -41,7 +35,7 @@
     today            = new Date();
     maxDate          = dayjs().add(30, 'day').toDate();   // 30 dias p/ frente
     disabledWeekDays: number[] = [];
-    /* dialogs */
+    clientePhone: string | null = null;
     readonly dayjs = dayjs;
     ocupados: string[] = [];     // preenchido por fetchOcupados()
     isSaving          = false;          // desabilita o botão enquanto grava
@@ -90,11 +84,13 @@
 
     /* ════════════════ CICLO DE VIDA ══════════════════════════ */
     async ngOnInit() {
-      const slug = this.route.snapshot.paramMap.get('empresaSlug');
+      const slug  = this.route.snapshot.paramMap.get('empresaSlug');
+      this.clientePhone = this.route.snapshot.queryParamMap.get('phone');   //  <-- aqui
+
       if (!slug) { console.error('Slug não informado'); return; }
 
       await this.loadEmpresa(slug);
-      await this.loadOcupados();          // 👈 carrega uma vez ao iniciar
+      await this.loadOcupados();
     }
     private async loadOcupados() {
       const data = await this.fetchWebhookRaw();   // console.log já mostra
@@ -304,17 +300,18 @@ openHoraDlg(): void {
 
     async confirm(): Promise<void> {
       if (this.isSaving || this.disabledAgendar()) return;
-
-      /* desliga o botão imediatamente */
       this.isSaving = true;
 
-      /* ── validações básicas ─────────────────────────── */
+      /* validações resumidas … */
       const dataSel = this.selectedDate();
       const horaSel = this.selectedHora();
       const servico = this.selectedServs()[0];
       if (!dataSel || !horaSel || !servico) { this.isSaving = false; return; }
 
-      /* monta payload de criação … (tudo igual) */
+      /* — telefone: se não veio via URL, cai no default “00000000000” —*/
+      const phone = this.clientePhone ?? '00000000000';
+
+      /* payload de criação no Supabase */
       const [h, m] = horaSel.split(':').map(Number);
       const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
       const bookingPayload = {
@@ -323,7 +320,7 @@ openHoraDlg(): void {
         servico_id     : servico.id,
         inicio         : inicio.toISOString(),
         cliente_nome   : 'Cliente Web',
-        cliente_phone  : '5511999999999'
+        cliente_phone  : phone                       //  <-- usa o número capturado
       };
 
       let bookingResult;
