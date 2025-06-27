@@ -84,8 +84,8 @@
 
     /* ════════════════ CICLO DE VIDA ══════════════════════════ */
     async ngOnInit() {
-      const slug  = this.route.snapshot.paramMap.get('empresaSlug');
-      this.clientePhone = this.route.snapshot.queryParamMap.get('phone');   //  <-- aqui
+      const slug = this.route.snapshot.paramMap.get('empresaSlug');
+      this.clientePhone = this.route.snapshot.paramMap.get('fone'); // ← aqui  //  <-- aqui
 
       if (!slug) { console.error('Slug não informado'); return; }
 
@@ -298,54 +298,65 @@ openHoraDlg(): void {
       this.days=[]; this.horas=[];
     }
 
-    async confirm(): Promise<void> {
-      if (this.isSaving || this.disabledAgendar()) return;
-      this.isSaving = true;
+// schedule.component.ts
+async confirm(): Promise<void> {
+  /* trava o botão caso algo ainda esteja pendente ------------------- */
+  if (this.isSaving || this.disabledAgendar()) return;
+  this.isSaving = true;
 
-      /* validações resumidas … */
-      const dataSel = this.selectedDate();
-      const horaSel = this.selectedHora();
-      const servico = this.selectedServs()[0];
-      if (!dataSel || !horaSel || !servico) { this.isSaving = false; return; }
+  /* ─────────── validações rápidas ─────────── */
+  const dataSel = this.selectedDate();
+  const horaSel = this.selectedHora();
+  const servico = this.selectedServs()[0];
+  if (!dataSel || !horaSel || !servico) { this.isSaving = false; return; }
 
-      /* — telefone: se não veio via URL, cai no default “00000000000” —*/
-      const phone = this.clientePhone ?? '00000000000';
+  /* telefone: rota “/agenda/slug/FONE”  OU  query ?phone=FONE -------- */
+  const phone =
+  this.route.snapshot.paramMap.get('fone') ??      // ← só paramMap
+  '00000000000';                              // fallback-safe
 
-      /* payload de criação no Supabase */
-      const [h, m] = horaSel.split(':').map(Number);
-      const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
-      const bookingPayload = {
-        filial_id      : this.selectedFilial()!.id,
-        profissional_id: this.selectedProf()!.id,
-        servico_id     : servico.id,
-        inicio         : inicio.toISOString(),
-        cliente_nome   : 'Cliente Web',
-        cliente_phone  : phone                       //  <-- usa o número capturado
-      };
+  /* payload p/ Supabase ------------------------------------------------ */
+  const [h, m] = horaSel.split(':').map(Number);
+  const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
+  const bookingPayload = {
+    filial_id      : this.selectedFilial()!.id,
+    profissional_id: this.selectedProf()!.id,
+    servico_id     : servico.id,
+    inicio         : inicio.toISOString(),
+    cliente_nome   : 'Cliente Web',
+    cliente_phone  : phone
+  };
 
-      let bookingResult;
-      try {
-        bookingResult = await this.api.createBooking(bookingPayload);
-        if (!bookingResult?.id) throw new Error('Erro ao criar');
-      } catch (e) {
-        console.error(e);
-        this.isSaving = false;
-        return;
-      }
+  let bookingResult: { id:string; view_hash:string; cancel_hash:string };
+  try {
+    bookingResult = await this.api.createBooking(bookingPayload);
+  } catch (err) {
+    console.error(err);
+    this.isSaving = false;
+    return;
+  }
 
-      /* dispara webhook (sem bloquear UI se falhar) */
-      const fimISO = inicio.add(servico.duracao_min, 'minute').toISOString();
-      fetch('https://n8n.grupobeely.com.br/webhook/0f9da9ee-0c0d-423d-98e8-607dc0a2cce9',
-            { method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({ /* …dados do webhook… */ }) })
-        .catch(err => console.error(err));
+  /* ─────────── monta links públicos ─────────── */
+  const base      = location.origin;                        // ex.: http://localhost:4200
+  const viewUrl   = `${base}/meus-agendamentos/${bookingResult.view_hash}`;
+  const cancelUrl = `${base}/meus-agendamentos/${bookingResult.cancel_hash}`;
 
-      /* limpa tela, volta à lista e abre modal de sucesso */
-      this.backToList();
-      this.successDlgVisible = true;
-      this.isSaving = false;
-    }
+  /* ─────────── dispara webhook c/ nº + links ─────────── */
+  fetch('https://n8n.grupobeely.com.br/webhook/teste-conan', {
+    method : 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body   : JSON.stringify({
+      phone,          // 5517997394284
+      view_url  : viewUrl,
+      cancel_url: cancelUrl
+    })
+  }).catch(err => console.error(err));
+
+  /* feedback de sucesso (modal verde) ------------------------------- */
+  this.backToList();
+  this.successDlgVisible = true;
+  this.isSaving = false;
+}
 
     /* ── agora o disabled inclui o flag isSaving ───────── */
     disabledAgendar(): boolean {

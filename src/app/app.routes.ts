@@ -4,7 +4,16 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   { path: '', redirectTo: 'agenda', pathMatch: 'full' },
 
-  /* ⚠️  DEVE vir primeiro! */
+  // 🔹 1º — rota MAIS específica (slug + fone)
+// app.routes.ts
+{
+  path: 'agenda/:empresaSlug/:fone',               // <-- novo segmento
+  loadComponent: () => import(
+    './scheduleModule/Components/schedule/schedule.component'
+  ).then(m => m.ScheduleComponent)
+},
+
+  // 🔹 2º — só o slug (continua funcionando)
   {
     path: 'agenda/:empresaSlug',
     loadComponent: () =>
@@ -12,7 +21,7 @@ export const routes: Routes = [
         .then(m => m.ScheduleComponent)
   },
 
-  /* rota sem parâmetro continua funcionando para testes */
+  // 🔹 3º — sem parâmetros (ex.: testes locais)
   {
     path: 'agenda',
     loadComponent: () =>
