@@ -295,68 +295,100 @@ openHoraDlg(): void {
       this.selectedServs.set([]);
       this.selectedDate.set(null);
       this.selectedHora.set(null);
-      this.days=[]; this.horas=[];
-    }
+      // ...existing code...
+          this.days=[]; this.horas=[];
+        }
 
-// schedule.component.ts
-async confirm(): Promise<void> {
-  /* trava o botão caso algo ainda esteja pendente ------------------- */
-  if (this.isSaving || this.disabledAgendar()) return;
-  this.isSaving = true;
+        // schedule.component.ts
+        async confirm(): Promise<void> {
+          if (this.isSaving || this.disabledAgendar()) return;
+          this.isSaving = true;
 
-  /* ─────────── validações rápidas ─────────── */
-  const dataSel = this.selectedDate();
-  const horaSel = this.selectedHora();
-  const servico = this.selectedServs()[0];
-  if (!dataSel || !horaSel || !servico) { this.isSaving = false; return; }
+          const dataSel = this.selectedDate();
+          const horaSel = this.selectedHora();
+          const servico = this.selectedServs()[0];
+          const filial = this.selectedFilial();
+          const profissional = this.selectedProf();
 
-  /* telefone: rota “/agenda/slug/FONE”  OU  query ?phone=FONE -------- */
-  const phone =
-  this.route.snapshot.paramMap.get('fone') ??      // ← só paramMap
-  '00000000000';                              // fallback-safe
+          if (!dataSel || !horaSel || !servico || !filial || !profissional) {
+            console.error("Validação falhou: dados do agendamento incompletos.");
+            this.isSaving = false;
+            return;
+          }
 
-  /* payload p/ Supabase ------------------------------------------------ */
-  const [h, m] = horaSel.split(':').map(Number);
-  const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
-  const bookingPayload = {
-    filial_id      : this.selectedFilial()!.id,
-    profissional_id: this.selectedProf()!.id,
-    servico_id     : servico.id,
-    inicio         : inicio.toISOString(),
-    cliente_nome   : 'Cliente Web',
-    cliente_phone  : phone
-  };
+          const phone = this.route.snapshot.paramMap.get('fone') ?? '00000000000';
 
-  let bookingResult: { id:string; view_hash:string; cancel_hash:string };
-  try {
-    bookingResult = await this.api.createBooking(bookingPayload);
-  } catch (err) {
-    console.error(err);
-    this.isSaving = false;
-    return;
-  }
+          const [h, m] = horaSel.split(':').map(Number);
+          const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
+          const fim = inicio.add(servico.duracao_min, 'minute');
 
-  /* ─────────── monta links públicos ─────────── */
-  const base      = location.origin;                        // ex.: http://localhost:4200
-  const viewUrl   = `${base}/meus-agendamentos/${bookingResult.view_hash}`;
-  const cancelUrl = `${base}/meus-agendamentos/${bookingResult.cancel_hash}`;
+          const bookingPayload = {
+            filial_id: filial.id,
+            profissional_id: profissional.id,
+            servico_id: servico.id,
+            inicio: inicio.toISOString(),
+            cliente_nome: 'Cliente Web',
+            cliente_phone: phone
+          };
 
-  /* ─────────── dispara webhook c/ nº + links ─────────── */
-  fetch('https://n8n.grupobeely.com.br/webhook/teste-conan', {
-    method : 'POST',
-    headers: { 'Content-Type':'application/json' },
-    body   : JSON.stringify({
-      phone,          // 5517997394284
-      view_url  : viewUrl,
-      cancel_url: cancelUrl
-    })
-  }).catch(err => console.error(err));
+          let bookingResult: { id: string; view_hash: string; cancel_hash: string; };
+          try {
+            bookingResult = await this.api.createBooking(bookingPayload);
+          } catch (err) {
+            console.error("Erro ao criar agendamento no Supabase:", err);
+            this.isSaving = false;
+            return;
+          }
 
-  /* feedback de sucesso (modal verde) ------------------------------- */
-  this.backToList();
-  this.successDlgVisible = true;
-  this.isSaving = false;
-}
+          // Webhook 1: Payload detalhado (o novo)
+          const payloadWebhookDetalhado = {
+            agendamento_id: bookingResult.id,
+            filial: filial,
+            profissional: profissional,
+            profissional_id: profissional.id,
+            servico: servico,
+            servico_id: servico.id,
+            data_agenda: this.dayjs(dataSel).format('YYYY-MM-DD'),
+            horario_selecionado: horaSel,
+            inicio: inicio.toISOString(),
+            fim: fim.toISOString(),
+            duracao_servico_min: servico.duracao_min,
+            cliente: { nome: 'Cliente Web', telefone: phone },
+            view_hash: bookingResult.view_hash,
+            cancel_hash: bookingResult.cancel_hash,
+            status: 'confirmado'
+          };
+
+          fetch('https://n8n.grupobeely.com.br/webhook/0f9da9ee-0c0d-423d-98e8-607dc0a2cce9', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadWebhookDetalhado)
+          })
+          .then(() => console.log('Webhook detalhado enviado com sucesso.'))
+          .catch(err => console.error('Erro ao enviar webhook detalhado:', err));
+
+          // Webhook 2: Payload com links (o original)
+          const base = location.origin;
+          const viewUrl = `${base}/meus-agendamentos/${bookingResult.view_hash}`;
+          const cancelUrl = `${base}/meus-agendamentos/${bookingResult.cancel_hash}`;
+
+          fetch('https://n8n.grupobeely.com.br/webhook/teste-conan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone,
+              view_url: viewUrl,
+              cancel_url: cancelUrl
+            })
+          })
+          .then(() => console.log('Webhook de links enviado com sucesso.'))
+          .catch(err => console.error('Erro ao enviar webhook de links:', err));
+
+          this.backToList();
+          this.successDlgVisible = true;
+          this.isSaving = false;
+        }
+
 
     /* ── agora o disabled inclui o flag isSaving ───────── */
     disabledAgendar(): boolean {
