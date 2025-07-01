@@ -256,3 +256,6 @@ app-schedule {
 .text-center {
   text-align: center
 }
+input{
+  width: 100% !important;
+}

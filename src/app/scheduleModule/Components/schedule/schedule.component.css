@@ -168,3 +168,68 @@ ul{
 }
 
 /* botão fechado – full width já vem do template */
+/* ========== Diálogo Nome/CPF ========== */
+:host ::ng-deep .ident-dialog .p-dialog-header {
+  background: linear-gradient(135deg, #000 0%, #4b5563 100%);
+  color: #fff;
+  font-weight: 600;
+  padding: 1rem 1.5rem;
+}
+
+:host ::ng-deep .ident-dialog .p-dialog-title {
+  font-size: 1.1rem;
+}
+
+:host ::ng-deep .ident-dialog .p-dialog-content {
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 1.5rem;
+}
+
+/* Labels e inputs */
+:host ::ng-deep .ident-dialog label {
+  font-size: .85rem;
+  font-weight: 500;
+  color: #555;
+}
+
+:host ::ng-deep .ident-dialog input {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: .65rem .75rem;
+  font-size: .9rem;
+  background: #f9f9f9;
+  transition: border .2s;
+}
+
+:host ::ng-deep .ident-dialog input:focus {
+  outline: none;
+  border-color: #4b5563;
+  box-shadow: 0 0 0 2px 4b5563(242,112,156,.25);
+}
+
+/* Botão “Continuar” */
+:host ::ng-deep .ident-dialog .p-button {
+  background: #000;
+  border: none;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+:host ::ng-deep .ident-dialog .p-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.continue{
+  margin-top: 10px;
+  height: 40px;
+  color: white;
+}
+.cpf{
+  width: 100%;
+}
+input{
+  width: 100% !important;
+}

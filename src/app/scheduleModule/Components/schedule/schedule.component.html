@@ -184,6 +184,22 @@
     </p>
   </div>
 </p-dialog>
+<p-dialog [(visible)]="nomeDlgVisible" modal header="Identificação" styleClass="ident-dialog" [style]="{ width:'350px',
+  borderRadius:'16px',
+  overflow:'hidden',
+  boxShadow:'0 16px 40px rgba(0,0,0,.25)' }" [maskStyle]="{ 'backdrop-filter':'blur(6px)',
+  background:'rgba(0,0,0,.35)' }">
+
+  <label for="nome">Nome completo</label>
+  <input id="nome" type="text" pInputText [(ngModel)]="clienteNome" placeholder="Ex.: João da Silva">
+
+  <label for="cpf">CPF</label>
+  <p-inputMask id="cpf" type="text" mask="999.999.999-99" unmask="true" [(ngModel)]="clienteCPF"
+    placeholder="000.000.000-00" class="cpf">
+  </p-inputMask>
+  <button pButton label="Continuar" class="continue" [disabled]="!clienteNome || clienteCPF.length!==11"
+    (click)="onNomeDlgContinue()"></button>
+</p-dialog>
 
 
 <!-- NOVO ❶ : diálogo de sucesso ----------------------------------- -->
