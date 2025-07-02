@@ -124,19 +124,43 @@ export class SupabaseAgendaService {
     return data;
   }
 
-  /* -----------------------------------------------------------
-   * 4. Cancelamento 1-clique (RPC)
-   * ----------------------------------------------------------- */
-  async cancelBooking(id: string, cancelHash: string) {
-    const { error } = await this.supabase
-      .rpc('agend_cancelar', { _id: id, _hash: cancelHash });
+    /* -----------------------------------------------------------
 
-    if (error) throw error;
-    return true;
-  }
 
-  /* ===== helpers internos ===== */
-  private async getEmpresaIdByFilial(filialId: string) {
+      /* -----------------------------------------------------------
+       * 5. Busca agendamento por hash (view ou cancel)
+       * ----------------------------------------------------------- */
+      async getBookingByHash(hash: string): Promise<ListedBooking | null> {
+        console.log('[Service] Buscando pelo hash:', hash); // LOG 1
+
+        const { data, error } = await this.supabase
+          .from('agend_agendamento')
+          .select(`
+            id,
+            inicio,
+            fim,
+            cliente_nome,
+            cancel_hash,
+            agend_filial!filial_id(nome),
+            agend_profissional!profissional_id(nome),
+            agend_servico!servico_id(nome, duracao_min)
+          `)
+          .or(`view_hash.eq.${hash},cancel_hash.eq.${hash}`)
+          .maybeSingle();
+
+        console.log('[Service] Resultado da busca:', { data, error }); // LOG 2
+
+        if (error) {
+          console.error('Erro ao buscar agendamento pelo hash:', error);
+          throw error;
+        }
+        return data as ListedBooking | null;
+      }
+
+
+    /* ===== helpers internos ===== */
+    private async getEmpresaIdByFilial(filialId: string) {
+  // ...existing code...
     const { data, error } = await this.supabase
       .from('agend_filial')
       .select('empresa_id')
@@ -183,5 +207,16 @@ export class SupabaseAgendaService {
       throw error;
     }
     return data ? data.duracao_min : 0;
+  }
+
+  async cancelBooking(id: string, cancelHash: string) {
+    const { error } = await this.supabase
+      .rpc('agend_cancelar', { _id: id, _hash: cancelHash });
+
+    if (error) {
+      console.error('Erro ao cancelar agendamento via RPC:', error);
+      throw error;
+    }
+    return true;
   }
 }

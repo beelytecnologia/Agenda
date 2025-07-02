@@ -1,57 +1,114 @@
-.container {
-  padding: 20px;
-  font-family: Arial, sans-serif;
+/* ─── Variáveis de Design ────────────────────────────────── */
+:host {
+  --primary-color: #007bff;
+  --primary-text: #212529;
+  --secondary-text: #6c757d;
+  --background-color: #f8f9fa;
+  --surface-color: #ffffff;
+  --border-color: #dee2e6;
+  --danger-color: #dc3545;
+  --danger-light-color: #f8d7da;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --border-radius: 12px;
 }
 
+/* ─── Layout Principal ───────────────────────────────────── */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  background-color: var(--background-color);
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header h2 {
+  margin: 0;
+  color: var(--primary-text);
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+/* ─── Estados (Carregando, Vazio, Erro) ──────────────────── */
 .loading, .no-bookings, .error-message {
   text-align: center;
-  margin-top: 20px;
-  padding: 20px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  background-color: #f9f9f9;
+  margin-top: 3rem;
+  padding: 2.5rem;
+  border-radius: var(--border-radius);
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--secondary-text);
 }
 
 .error-message {
-  color: red;
-  border-color: red;
-  background-color: #ffebee;
+  color: var(--danger-color);
+  border-color: var(--danger-color);
+  background-color: var(--danger-light-color);
 }
 
+.error-message p {
+  margin-bottom: 1rem;
+}
+
+/* ─── Card de Agendamento ────────────────────────────────── */
 .bookings-list {
-  margin-top: 20px;
+  margin-top: 2rem;
+  display: grid;
+  gap: 1.5rem;
 }
 
 .booking-card {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background-color: var(--surface-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
-.booking-card h4 {
-  margin-top: 0;
-  color: #333;
+.booking-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
-.booking-card p {
-  margin: 5px 0;
-  color: #555;
+.card-header h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--primary-color);
+  font-size: 1.25rem;
 }
 
+.card-details p {
+  margin: 0.5rem 0;
+  color: var(--secondary-text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.card-details p strong {
+  color: var(--primary-text);
+  font-weight: 500;
+  min-width: 110px;
+  display: inline-block;
+}
+
+.card-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Remove o <hr> pois o footer já tem borda */
 .booking-card hr {
-  border: 0;
-  border-top: 1px solid #eee;
-  margin: 15px 0;
-}
-
-button[pButton] {
-  margin-top: 10px;
-}
-
-a[pButton] {
-  margin-bottom: 20px; /* Adiciona espaço abaixo do botão "Novo Agendamento" */
-  display: inline-block; /* Garante que a margem seja aplicada corretamente */
+  display: none;
 }
