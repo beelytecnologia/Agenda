@@ -112,3 +112,41 @@
 .booking-card hr {
   display: none;
 }
+/* Modal de confirmação clean */
+.cancel-dialog-content {
+  text-align: center;
+  padding: 2rem 1.5rem 1.5rem 1.5rem;
+}
+
+.cancel-dialog-content p {
+  margin-bottom: 2rem;
+  color: var(--primary-text);
+  font-size: 1.1rem;
+}
+
+.cancel-btn {
+  min-width: 180px;
+  margin-bottom: 0.5rem;
+}
+
+.close-btn {
+  display: block;
+  margin: 0 auto;
+  color: var(--secondary-text);
+  font-size: 0.95rem;
+}
+.dialog-close-x {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 1.6rem;
+  color: #888;
+  cursor: pointer;
+  z-index: 10;
+  transition: color 0.2s;
+}
+.dialog-close-x:hover {
+  color: #000;
+}

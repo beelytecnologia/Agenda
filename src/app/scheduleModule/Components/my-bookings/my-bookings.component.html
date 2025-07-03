@@ -1,3 +1,23 @@
+<p-toast position="bottom-center"></p-toast>
+<p-dialog header="" [visible]="showCancelDialog()" (visibleChange)="showCancelDialog.set($event)" [modal]="true"
+  [closable]="false"
+  [style]="{ background:'#fff', padding:'20px', borderRadius:'14px', width:'330px', minHeight:'300px' }"
+  [maskStyle]="{ 'backdrop-filter':'blur(5px)', background:'rgba(0,0,0,.15)' }">
+
+  <!-- Botão X no topo direito -->
+  <button type="button" class="dialog-close-x" (click)="cancelDialogClose()" aria-label="Fechar">
+    &times;
+  </button>
+
+  <div *ngIf="bookingToCancel" class="cancel-dialog-content">
+    <p>
+      Tem certeza que deseja cancelar o agendamento para
+      <strong>{{ bookingToCancel.cliente_nome }}</strong>?
+    </p>
+    <button pButton label="Cancelar Agendamento" (click)="confirmCancelBooking()" style="position:fixed;bottom:20px;left:16px;right:16px;background:#000;color:#fff;
+    height:50px;border-radius:10px;z-index:1000;max-width:calc(100% - 32px);margin:0 auto;"></button>
+  </div>
+</p-dialog>
 <div class="container">
   <div class="header">
     <h2>Meus Agendamentos</h2>
@@ -6,7 +26,6 @@
 
   <div *ngIf="isLoading()" class="loading">
     <p>Carregando agendamentos...</p>
-    <!-- Você pode adicionar um spinner do PrimeNG aqui, ex: <p-progressSpinner></p-progressSpinner> -->
   </div>
 
   <div *ngIf="errorLoading()" class="error-message">
@@ -32,7 +51,8 @@
       </div>
       <div class="card-footer">
         <button pButton type="button" label="Cancelar Agendamento" icon="pi pi-times"
-          class="p-button-danger p-button-outlined" (click)="cancelBooking(booking)" [disabled]="!booking.cancel_hash">
+          class="p-button-danger p-button-outlined" (click)="openCancelDialog(booking)"
+          [disabled]="!booking.cancel_hash">
         </button>
       </div>
     </div>
