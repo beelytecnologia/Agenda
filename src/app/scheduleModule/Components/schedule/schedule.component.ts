@@ -23,6 +23,7 @@ import { ToastModule }   from 'primeng/toast';    // importe no @Component.impor
   type Cell = { date: Date | null; disabled: boolean };
   type BookingWithStatus = ListedBooking & {
     status?: 'pending' | 'confirmed' | 'cancelled';
+    id_calendar?: string | null;           // ← novo
   };
   @Component({
     selector   : 'app-schedule',
@@ -391,45 +392,47 @@ openHoraDlg(): void {
       this.bookingToCancel = booking;
       this.showCancelDialog.set(true);
     }
-
     async confirmCancelBooking() {
-
       if (!this.bookingToCancel) return;
 
-      // 1) valida CPF
+      /* valida CPF ---------------------------------------------------- */
       if (this.clienteCPF !== this.bookingToCancel.cliente_cpf) {
         this.messageService.add({
           severity : 'warn',
           summary  : 'CPF incorreto',
           detail   : 'O CPF informado não confere com o CPF deste agendamento.'
         });
-        return;                          // aborta
+        return;
       }
 
-      // 2) segue o cancelamento normalmente
-      const { id, cancel_hash } = this.bookingToCancel;
+      /* segue cancelamento ------------------------------------------- */
+      const { id, cancel_hash, id_calendar } = this.bookingToCancel;
       try {
-        await this.api.cancelBooking(id, cancel_hash);          // RPC
+        await this.api.cancelBooking(id, cancel_hash);   // RPC Supabase
+
+        /* 🔸 NOVO: remove do Google Calendar via n8n */
+        if (id_calendar) {
+          await fetch('https://n8n.grupobeely.com.br/webhook/delete-agenda', {
+            method : 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body   : JSON.stringify({ id_calendar })
+          });
+        }
+
+        /* webhook existente (avisos internos/WhatsApp) */
         await fetch('https://n8n.grupobeely.com.br/webhook/cancelado', {
           method : 'POST',
           headers: { 'Content-Type':'application/json' },
           body   : JSON.stringify({ cancel_hash })
         });
 
+        /* feedback UI + refresh -------------------------------------- */
         this.messageService.add({
           severity : 'success',
           summary  : 'Cancelado',
           detail   : 'Agendamento cancelado com sucesso!'
         });
-        await this.loadAgendamentosDoCliente();   // ②
-
-        // atualiza listas locais
-        this.agendamentosConfirmados.update(ls =>
-          ls.map(b => b.id === id ? { ...b, status:'cancelled' } : b)
-        );
-        this.agendamentosAnteriores.update(ls =>
-          ls.map(b => b.id === id ? { ...b, status:'cancelled' } : b)
-        );
+        await this.loadAgendamentosDoCliente();
 
       } catch (err) {
         console.error('Falha ao cancelar:', err);
@@ -590,8 +593,8 @@ async confirm(): Promise<void> {
     );
 
     /* 7. refresh & UI ----------------------------------------- */
-    await this.loadAgendamentosDoCliente();  // atualiza listas
-    this.backToList();
+    await this.loadAgendamentosDoCliente();   // 1️⃣ recarrega listas
+    this.backToList();                        // 2️⃣ volta para tela “lista”
     this.successDlgVisible = true;
 
   } catch (err) {

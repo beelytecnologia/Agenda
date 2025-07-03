@@ -1,9 +1,4 @@
-/*  SupabaseAgendaService.ts
- *  – já preparado para gravar / ler o CPF do cliente
- *  – select-lists padronizados (a mesma lista em todos os métodos)
- *  – status tipado opcional, pois alguns selects não trazem status
- *  – createBooking (): agora grava cliente_cpf e devolve _view/cancel_hash_
- */
+
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../Environment/environment';
@@ -29,11 +24,12 @@ export interface BookingPayload {
   cliente_nome   : string;
   cliente_phone  : string;
   cliente_cpf    : string;   // ← novo
+  id_calendar?   : string | null; // opcional, pode ser preenchido depois
 }
 
 /* a lista usada em todos os SELECTs */
 const SELECT_COLUMNS = `
-  id,inicio,fim,cliente_nome,cliente_phone,cliente_cpf,status,cancel_hash,
+  id,inicio,fim,cliente_nome,cliente_phone,cliente_cpf,status,cancel_hash,id_calendar,
   agend_filial!filial_id(nome),
   agend_profissional!profissional_id(nome),
   agend_servico!servico_id(nome,duracao_min)
@@ -47,6 +43,7 @@ export interface ListedBooking {
   cliente_phone: string;
   cliente_cpf  : string;
   cancel_hash  : string;
+  id_calendar  : string | null; // integração Google Calendar
   status?      : 'pending' | 'confirmed' | 'cancelled';
 
   agend_filial      : { nome: string } | null;
@@ -58,13 +55,13 @@ export interface ListedBooking {
 @Injectable({ providedIn: 'root' })
 export class SupabaseAgendaService {
   supabase: SupabaseClient;      // 👈  publique a instância
+
   constructor() {
     this.supabase = createClient(
       environment.supabaseUrl,
       environment.supabaseKey
     );
   }
-
 
   /* ========== 1. catálogo completo ========================= */
   async loadEmpresaComTudo(slug: string) {
@@ -103,13 +100,14 @@ export class SupabaseAgendaService {
                             .toISOString(),
         cliente_nome    : p.cliente_nome,
         cliente_phone   : p.cliente_phone,
-        cliente_cpf     : p.cliente_cpf           // 👈 grava CPF
+        cliente_cpf     : p.cliente_cpf,
+        id_calendar     : p.id_calendar ?? null
       })
-      .select('id,view_hash,cancel_hash')
+      .select('id,view_hash,cancel_hash,id_calendar')
       .single();
 
     if (error) throw error;
-    return data as { id: string; view_hash: string; cancel_hash: string };
+    return data as { id: string; view_hash: string; cancel_hash: string; id_calendar: string | null };
   }
 
   /* ========== 3. detalhes via id + view_hash =============== */
