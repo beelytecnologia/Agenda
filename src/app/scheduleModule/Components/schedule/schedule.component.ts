@@ -7,7 +7,8 @@
 import { InputTextModule } from 'primeng/inputtext';
 import { InputMaskModule } from 'primeng/inputmask';
 
-
+import { MessageService } from 'primeng/api';     // já existe no outro componente
+import { ToastModule }   from 'primeng/toast';    // importe no @Component.imports
   /* ─── PrimeNG ─────────────────────────────────────────────── */
   import { ButtonModule }   from 'primeng/button';
   import { TabViewModule }  from 'primeng/tabview';
@@ -16,10 +17,13 @@ import { InputMaskModule } from 'primeng/inputmask';
 
   /* ─── Serviços & Tipos ─────────────────────────────────────── */
   import { SupabaseAgendaService,
-          Filial, Profissional, Servico } from '../../../shared/services/supabase-agenda.service';
+          Filial, Profissional, Servico,
+          ListedBooking} from '../../../shared/services/supabase-agenda.service';
 
   type Cell = { date: Date | null; disabled: boolean };
-
+  type BookingWithStatus = ListedBooking & {
+    status?: 'pending' | 'confirmed' | 'cancelled';
+  };
   @Component({
     selector   : 'app-schedule',
     standalone : true,
@@ -28,10 +32,13 @@ import { InputMaskModule } from 'primeng/inputmask';
     imports    : [
       /* Angular */   CommonModule, FormsModule,
       /* PrimeNG */   ButtonModule, TabViewModule, DialogModule, CalendarModule,
-      InputTextModule, InputMaskModule
-    ]
+      InputTextModule, InputMaskModule,ToastModule
+    ],
+    providers: [MessageService]          // 👈 igual ao MyBookings
+
   })
   export class ScheduleComponent implements OnInit {
+    private messageService = inject(MessageService);
 
     /* ════════════════ ESTADO DE UI ═══════════════════════════ */
     view:'list'|'create' = 'list';
@@ -48,6 +55,15 @@ import { InputMaskModule } from 'primeng/inputmask';
     nomeDlgVisible   = false;        // controla o novo diálogo
     clienteNome      = '';           // bind <input>
     clienteCPF       = '';
+
+    cpfValido  = signal(false);
+    cpfTouched = signal(false);
+    showCancelDialog   = signal(false);
+    bookingToCancel    : BookingWithStatus | null = null;
+
+    // sinais que armazenam as listas
+    agendamentosConfirmados = signal<BookingWithStatus[]>([]);
+    agendamentosAnteriores  = signal<BookingWithStatus[]>([]);
 
     filialDlgVisible = false;
     profDlgVisible   = false;
@@ -96,13 +112,80 @@ import { InputMaskModule } from 'primeng/inputmask';
 
       const slug = this.route.snapshot.paramMap.get('empresaSlug');
       this.clientePhone = this.route.snapshot.paramMap.get('fone'); // ← aqui  //  <-- aqui
+
       this.empresaSlug = slug ?? '';
 
       if (!slug) { console.error('Slug não informado'); return; }
 
       await this.loadEmpresa(slug);
+      const todos        = await this.api.getBookingsByPhone(this.clientePhone? this.clientePhone : '00000000000');
+const confirmados  = todos.filter(b => b.status?.toLowerCase() === 'confirmed');
+const anteriores   = todos.filter(b => b.status?.toLowerCase() !== 'confirmed');
+
+this.agendamentosConfirmados.set(confirmados);
+this.agendamentosAnteriores .set(anteriores);
+      await this.loadAgendamentosDoCliente(); // ← aqui
+      this.listenRealtime();
       await this.loadOcupados();
     }
+    private async loadAgendamentosDoCliente() {
+      if (!this.clientePhone) return;
+
+      try {
+        const todos = await this.api.getBookingsByPhone(this.clientePhone);
+        const confirmados = todos.filter(b => b.status === 'confirmed');
+        const anteriores  = todos.filter(b => b.status !== 'confirmed');
+
+        this.agendamentosConfirmados.set(confirmados);
+        this.agendamentosAnteriores.set(anteriores);
+      } catch (err) {
+        console.error('Erro ao carregar agendamentos do cliente:', err);
+      }
+    }
+    onCpfChange(raw: string) {
+      const valido = this.isCpfValid(raw);
+      this.cpfValido.set(valido);
+
+      // quando o usuário digita o 11º dígito, marcamos como “tocado”
+      // e, se for inválido, mostramos um toast
+      if (raw.replace(/\D/g, '').length === 11) {
+        this.cpfTouched.set(true);
+
+        if (!valido) {
+          this.messageService.add({
+            severity : 'warn',
+            summary  : 'CPF inválido',
+            detail   : 'Confira os dígitos verificadores.'
+          });
+        }
+      } else {
+        // voltou a apagar – esconde a mensagem inline
+        this.cpfTouched.set(false);
+      }
+    }
+
+/*  método auxiliar  -----------------------------------------*/
+private listenRealtime() {
+  if (!this.clientePhone) return;
+
+  this.api.supabase                 // ← expõe o client do serviço
+    .channel('rt-agendamentos')     // nome qualquer
+    .on(
+      'postgres_changes',
+      {
+        event: '*',                 // INSERT, UPDATE ou DELETE
+        schema: 'public',
+        table : 'agend_agendamento',
+        filter: `cliente_phone=eq.${this.clientePhone}`
+      },
+      payload => {
+        // cada payload tem .eventType e .new / .old
+        this.loadAgendamentosDoCliente();   // recarrega listas
+      }
+    )
+    .subscribe();
+}
+
     private async loadOcupados() {
       const data = await this.fetchWebhookRaw();   // console.log já mostra
 
@@ -294,6 +377,78 @@ openHoraDlg(): void {
       if(d) this.generateHorarios(d);
       this.servDlgVisible=false;
     }
+    openCancelDialog(booking: BookingWithStatus) {
+      if (!booking.cancel_hash) {
+        this.messageService.add({
+          severity: 'warn',
+          summary : 'Atenção',
+          detail  : 'Este agendamento não pode ser cancelado.'
+        });
+        return;
+      }
+      this.clienteCPF     = '';          // ← limpa
+
+      this.bookingToCancel = booking;
+      this.showCancelDialog.set(true);
+    }
+
+    async confirmCancelBooking() {
+
+      if (!this.bookingToCancel) return;
+
+      // 1) valida CPF
+      if (this.clienteCPF !== this.bookingToCancel.cliente_cpf) {
+        this.messageService.add({
+          severity : 'warn',
+          summary  : 'CPF incorreto',
+          detail   : 'O CPF informado não confere com o CPF deste agendamento.'
+        });
+        return;                          // aborta
+      }
+
+      // 2) segue o cancelamento normalmente
+      const { id, cancel_hash } = this.bookingToCancel;
+      try {
+        await this.api.cancelBooking(id, cancel_hash);          // RPC
+        await fetch('https://n8n.grupobeely.com.br/webhook/cancelado', {
+          method : 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body   : JSON.stringify({ cancel_hash })
+        });
+
+        this.messageService.add({
+          severity : 'success',
+          summary  : 'Cancelado',
+          detail   : 'Agendamento cancelado com sucesso!'
+        });
+        await this.loadAgendamentosDoCliente();   // ②
+
+        // atualiza listas locais
+        this.agendamentosConfirmados.update(ls =>
+          ls.map(b => b.id === id ? { ...b, status:'cancelled' } : b)
+        );
+        this.agendamentosAnteriores.update(ls =>
+          ls.map(b => b.id === id ? { ...b, status:'cancelled' } : b)
+        );
+
+      } catch (err) {
+        console.error('Falha ao cancelar:', err);
+        this.messageService.add({
+          severity : 'error',
+          summary  : 'Erro',
+          detail   : 'Falha ao cancelar o agendamento.'
+        });
+      } finally {
+        this.showCancelDialog.set(false);
+        this.bookingToCancel = null;
+        this.clienteCPF      = '';
+      }
+    }
+    cancelDialogClose() {
+      this.showCancelDialog.set(false);
+      this.bookingToCancel = null;
+    }
+
 
     isServicoSelected(s:Servico){ return this.selectedServs().some(v=>v.id===s.id); }
 
@@ -313,6 +468,24 @@ openHoraDlg(): void {
 /** Confirma o agendamento, enviando ao Supabase + Webhooks.
  *  Para o slug **dra-marcela-mendonca** exige nome completo e CPF
  *  (11 dígitos, sem máscara) antes de prosseguir. */
+    /** Remove tudo que não seja dígito e valida os 2 dígitos verificadores. */
+    isCpfValid(cpfRaw: string): boolean {
+      const cpf = cpfRaw.replace(/\D/g, '');
+
+      if (cpf.length !== 11)           return false;
+      if (/^(\d)\1{10}$/.test(cpf))    return false;        // 111.111.111-11
+
+      const calc = (len: number) => {
+        let sum = 0;
+        for (let i = 0; i < len; i++) sum += +cpf[i] * (len + 1 - i);
+        const rest = (sum * 10) % 11;
+        return rest === 10 ? 0 : rest;
+      };
+
+      return calc(9) === +cpf[9] && calc(10) === +cpf[10];
+    }
+
+
 async confirm(): Promise<void> {
   /* evita cliques duplos ------------------------------------- */
   if (this.isSaving) return;
@@ -346,70 +519,78 @@ async confirm(): Promise<void> {
   this.isSaving = true;
 
   try {
-    /* horário ISO local -------------------------------------- */
+    /* 1. monta horário **UTC** completo ------------------------ */
     const [h, m] = horaSel.split(':').map(Number);
-    const inicio = this.dayjs(dataSel).hour(h).minute(m).second(0);
-    const fim    = inicio.add(servico.duracao_min, 'minute');
 
-    /* telefone vindo da rota (fallback “000…”) ---------------- */
-    const phone  = this.route.snapshot.paramMap.get('fone') ?? '00000000000';
+    const inicio = this.dayjs(dataSel)           // dia escolhido
+                    .hour(h).minute(m).second(0) // + hora escolhida
+                    .toISOString();              // ⇢ 2024-08-10T14:00:00.000Z
 
+    const fim    = this.dayjs(inicio)
+                    .add(servico.duracao_min, 'minute')
+                    .toISOString();
+
+    /* 2. telefone da rota (fallback “000…”) -------------------- */
+    const phone = this.route.snapshot.paramMap.get('fone') ?? '00000000000';
+
+    /* 3. payload p/ Supabase (ISO já contém o fuso “Z”) -------- */
     const bookingPayload = {
-      filial_id      : filial.id,
-      profissional_id: profissional.id,
-      servico_id     : servico.id,
-      inicio         : inicio.format('YYYY-MM-DDTHH:mm:ss'),
-      cliente_nome   : this.clienteNome || 'Cliente Web',
-      cliente_phone  : phone
+      filial_id       : filial.id,
+      profissional_id : profissional.id,
+      servico_id      : servico.id,
+      inicio,         // ISO completo
+      fim,
+      cliente_nome    : this.clienteNome || 'Cliente Web',
+      cliente_phone   : phone,
+      cliente_cpf     : this.clienteCPF
     };
 
-    /* grava no Supabase e recebe hashes de visualização -------- */
+    /* 4. grava e obtém hashes --------------------------------- */
     const { id, view_hash, cancel_hash } =
           await this.api.createBooking(bookingPayload);
 
-    /* ─────────────────────────────────────────────────────────
-     * 4) Dispara webhooks (detalhado + links)
-     * ───────────────────────────────────────────────────────── */
+    /* 5. prepara dados para os web-hooks ---------------------- */
+    const dataAgenda = this.dayjs(inicio).format('YYYY-MM-DD');
+
     const payloadDetalhado = {
       agendamento_id     : id,
       filial,
       profissional,
       servico,
-      data_agenda        : inicio.format('YYYY-MM-DD'),
+      data_agenda        : dataAgenda,
       horario_selecionado: horaSel,
-      inicio             : inicio.format('YYYY-MM-DDTHH:mm:ss'),
-      fim                : fim.format('YYYY-MM-DDTHH:mm:ss'),
+      inicio,
+      fim,
       duracao_servico_min: servico.duracao_min,
       cliente            : {
-        nome : bookingPayload.cliente_nome,
-        telefone: phone,
-        cpf  : this.clienteCPF
+        nome     : bookingPayload.cliente_nome,
+        telefone : phone,
+        cpf      : this.clienteCPF
       },
       view_hash,
       cancel_hash,
-      status             : 'confirmado'
+      status : 'confirmado'
     };
 
-    /* webhook detalhado */
+    /* 6. dispara web-hooks ------------------------------------ */
     await fetch(
       'https://n8n.grupobeely.com.br/webhook/0f9da9ee-0c0d-423d-98e8-607dc0a2cce9',
       { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payloadDetalhado) }
     );
 
-    /* webhook com links */
-    const base      = location.origin;
     await fetch(
       'https://n8n.grupobeely.com.br/webhook/teste-conan',
       { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           phone,
-          view_url  : `${base}/meus-agendamentos/${view_hash}`,
-          cancel_url: `${base}/meus-agendamentos/${cancel_hash}`
+          view_url  : `${location.origin}/meus-agendamentos/${view_hash}`,
+          cancel_url: `${location.origin}/meus-agendamentos/${cancel_hash}`
         }) }
     );
 
-    /* ─────────────────── UI de sucesso ────────────────────── */
+    /* 7. refresh & UI ----------------------------------------- */
+    await this.loadAgendamentosDoCliente();  // atualiza listas
     this.backToList();
     this.successDlgVisible = true;
 
@@ -418,6 +599,7 @@ async confirm(): Promise<void> {
   } finally {
     this.isSaving = false;
   }
+
 }
 
     /* ── agora o disabled inclui o flag isSaving ───────── */

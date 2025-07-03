@@ -1,49 +1,63 @@
+/*  SupabaseAgendaService.ts
+ *  – já preparado para gravar / ler o CPF do cliente
+ *  – select-lists padronizados (a mesma lista em todos os métodos)
+ *  – status tipado opcional, pois alguns selects não trazem status
+ *  – createBooking (): agora grava cliente_cpf e devolve _view/cancel_hash_
+ */
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../Environment/environment';
 import dayjs from 'dayjs';
 
-export interface Empresa       { id:string; slug:string; nome:string }
+/* ─────────── Tipos auxiliares ─────────── */
+export interface Empresa { id: string; slug: string; nome: string; }
 
 export interface Endereco {
-  rua?: string;
-  numero?: string;
-  complemento?: string;
-  bairro?: string;
-  cidade?: string;
-  estado?: string;
-  cep?: string;
+  rua?: string; numero?: string; complemento?: string;
+  bairro?: string; cidade?: string; estado?: string; cep?: string;
 }
 
-export interface Filial        { id:string; nome:string; empresa_id:string; endereco?: Endereco }
-export interface Profissional  { id:string; nome:string; filial_id:string, foto:string|null }
-export interface Servico       { id:string; nome:string; duracao_min:number, preco?:number,highlight?:boolean }
+export interface Filial       { id: string; nome: string; empresa_id: string; endereco?: Endereco; }
+export interface Profissional { id: string; nome: string; filial_id: string; foto: string | null; }
+export interface Servico      { id: string; nome: string; duracao_min: number; preco?: number; highlight?: boolean; }
 
 export interface BookingPayload {
-  filial_id:        string;
-  profissional_id:  string;
-  servico_id:     string;
-  inicio:           string;
-  cliente_nome:     string;
-  cliente_phone:    string;
+  filial_id      : string;
+  profissional_id: string;
+  servico_id     : string;
+  inicio         : string;   // ISO
+  cliente_nome   : string;
+  cliente_phone  : string;
+  cliente_cpf    : string;   // ← novo
 }
+
+/* a lista usada em todos os SELECTs */
+const SELECT_COLUMNS = `
+  id,inicio,fim,cliente_nome,cliente_phone,cliente_cpf,status,cancel_hash,
+  agend_filial!filial_id(nome),
+  agend_profissional!profissional_id(nome),
+  agend_servico!servico_id(nome,duracao_min)
+`;
 
 export interface ListedBooking {
-  id: string;
-  inicio: string;
-  fim: string;
-  cliente_nome: string;
-  cancel_hash: string;
-  agend_filial: { nome: string } | null;
+  id           : string;
+  inicio       : string;
+  fim          : string;
+  cliente_nome : string;
+  cliente_phone: string;
+  cliente_cpf  : string;
+  cancel_hash  : string;
+  status?      : 'pending' | 'confirmed' | 'cancelled';
+
+  agend_filial      : { nome: string } | null;
   agend_profissional: { nome: string } | null;
-  agend_servico: { nome: string; duracao_min: number } | null;
+  agend_servico     : { nome: string; duracao_min: number } | null;
 }
 
+/* ─────────────────────────────────────── */
 @Injectable({ providedIn: 'root' })
 export class SupabaseAgendaService {
-
-  private supabase: SupabaseClient;
-
+  supabase: SupabaseClient;      // 👈  publique a instância
   constructor() {
     this.supabase = createClient(
       environment.supabaseUrl,
@@ -51,172 +65,135 @@ export class SupabaseAgendaService {
     );
   }
 
-  /* -----------------------------------------------------------
-   * 1. Carrega tudo para o catálogo (1 única query)
-   * ----------------------------------------------------------- */
+
+  /* ========== 1. catálogo completo ========================= */
   async loadEmpresaComTudo(slug: string) {
     const { data, error } = await this.supabase
-    .from('agend_empresa')
-    .select(`
-      *,
-      agend_filial (
+      .from('agend_empresa')
+      .select(`
         *,
-        agend_profissional (
+        agend_filial (
           *,
-          agend_servico (
-            id, nome, duracao_min, preco
+          agend_profissional (
+            *,
+            agend_servico ( id,nome,duracao_min,preco )
           )
         )
-      )
-    `)
-    .eq('slug', slug)
-    .maybeSingle();
-
+      `)
+      .eq('slug', slug)
+      .maybeSingle();
 
     if (error) throw error;
-    if (!data) throw new Error('Empresa não encontrada.');
+    if (!data) throw new Error('Empresa não encontrada');
     return data;
   }
 
+  /* ========== 2. criar agendamento ========================= */
+  async createBooking(p: BookingPayload) {
+    const { data, error } = await this.supabase
+      .from('agend_agendamento')
+      .insert({
+        empresa_id      : await this.getEmpresaIdByFilial(p.filial_id),
+        filial_id       : p.filial_id,
+        profissional_id : p.profissional_id,
+        servico_id      : p.servico_id,
+        inicio          : p.inicio,
+        fim             : dayjs(p.inicio)
+                            .add(await this.somaDuracao(p.servico_id), 'minute')
+                            .toISOString(),
+        cliente_nome    : p.cliente_nome,
+        cliente_phone   : p.cliente_phone,
+        cliente_cpf     : p.cliente_cpf           // 👈 grava CPF
+      })
+      .select('id,view_hash,cancel_hash')
+      .single();
 
-  /* -----------------------------------------------------------
-   * 2. Cria agendamento e devolve hashes + id
-   * ----------------------------------------------------------- */
-    async createBooking(p: BookingPayload) {
-      const { data, error } = await this.supabase
-        .from('agend_agendamento')
-        .insert({
-          empresa_id:       await this.getEmpresaIdByFilial(p.filial_id),
-          filial_id:        p.filial_id,
-          profissional_id:  p.profissional_id,
-          servico_id:     p.servico_id,
-          inicio:           p.inicio,
-          fim:              dayjs(p.inicio)
-                             .add(await this.somaDuracao(p.servico_id), 'minute')
-                             .toISOString(),
-          cliente_nome:     p.cliente_nome,
-          cliente_phone:    p.cliente_phone
-        })
-        .select('id, view_hash, cancel_hash')
-        .single();
+    if (error) throw error;
+    return data as { id: string; view_hash: string; cancel_hash: string };
+  }
 
-      if (error) throw error;
-      return data as { id:string; view_hash:string; cancel_hash:string };
-    }
-
-  /* -----------------------------------------------------------
-   * 3. Detalhes por id+view_hash
-   * ----------------------------------------------------------- */
+  /* ========== 3. detalhes via id + view_hash =============== */
   async getBooking(id: string, viewHash: string) {
     const { data, error } = await this.supabase
       .from('agend_agendamento')
-      .select(`
-        *,
-        agend_filial!filial_id(id,nome),
-        agend_profissional!profissional_id(id,nome),
-        agend_servico!agend_agendamento_servicos_ids_fkey(id,nome,duracao_min)
-      `)
+      .select(SELECT_COLUMNS)
       .eq('id', id)
       .eq('view_hash', viewHash)
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as ListedBooking;
   }
 
-    /* -----------------------------------------------------------
+  /* ========== 4. consulta por hash (view ou cancel) ======== */
+  async getBookingByHash(hash: string) {
+    const { data, error } = await this.supabase
+      .from('agend_agendamento')
+      .select(SELECT_COLUMNS)
+      .or(`view_hash.eq.${hash},cancel_hash.eq.${hash}`)
+      .maybeSingle();
 
+    if (error) throw error;
+    return data as ListedBooking | null;
+  }
 
-      /* -----------------------------------------------------------
-       * 5. Busca agendamento por hash (view ou cancel)
-       * ----------------------------------------------------------- */
-      async getBookingByHash(hash: string): Promise<ListedBooking | null> {
-        console.log('[Service] Buscando pelo hash:', hash); // LOG 1
+  /* ========== 5. lista por telefone ======================== */
+  async getBookingsByPhone(phone: string) {
+    const { data, error } = await this.supabase
+      .from('agend_agendamento')
+      .select(SELECT_COLUMNS)
+      .eq('cliente_phone', phone)
+      .order('inicio', { ascending: true });
 
-        const { data, error } = await this.supabase
-          .from('agend_agendamento')
-          .select(`
-            id,
-            inicio,
-            fim,
-            cliente_nome,
-            cancel_hash,
-            agend_filial!filial_id(nome),
-            agend_profissional!profissional_id(nome),
-            agend_servico!servico_id(nome, duracao_min)
-          `)
-          .or(`view_hash.eq.${hash},cancel_hash.eq.${hash}`)
-          .maybeSingle();
+    if (error) throw error;
 
-        console.log('[Service] Resultado da busca:', { data, error }); // LOG 2
+    /* Supabase retorna arrays quando há FKs com select() – normalizamos */
+    return (data ?? []).map((r: any) => ({
+      ...r,
+      agend_filial      : Array.isArray(r.agend_filial)       ? r.agend_filial[0]       : r.agend_filial,
+      agend_profissional: Array.isArray(r.agend_profissional) ? r.agend_profissional[0] : r.agend_profissional,
+      agend_servico     : Array.isArray(r.agend_servico)      ? r.agend_servico[0]      : r.agend_servico,
+    })) as ListedBooking[];
+  }
 
-        if (error) {
-          console.error('Erro ao buscar agendamento pelo hash:', error);
-          throw error;
-        }
-        return data as ListedBooking | null;
-      }
+  /* ========== 6. cancelar via RPC ========================== */
+  async cancelBooking(id: string, hash: string) {
+    const { error } = await this.supabase.rpc('agend_cancelar', { _id: id, _hash: hash });
+    if (error) throw error;
+    return true;
+  }
 
-
-    /* ===== helpers internos ===== */
-    private async getEmpresaIdByFilial(filialId: string) {
-  // ...existing code...
+  /* ===== helpers internos ================================== */
+  private async getEmpresaIdByFilial(filialId: string) {
     const { data, error } = await this.supabase
       .from('agend_filial')
       .select('empresa_id')
       .eq('id', filialId)
       .single();
+
     if (error) throw error;
     return data!.empresa_id as string;
   }
 
-  async getAllBookings(): Promise<ListedBooking[]> {
-    const { data, error } = await this.supabase
-      .from('agend_agendamento')
-      .select(`
-        id,
-        inicio,
-        fim,
-        cliente_nome,
-        cancel_hash,
-        agend_filial!filial_id(nome),
-        agend_profissional!profissional_id(nome),
-        agend_servico!servico_id(nome, duracao_min)
-      `)
-      .order('inicio', { ascending: false });
-
-    if (error) {
-      console.error('Erro ao buscar todos os agendamentos:', error);
-      throw error;
-    }
-    return data as unknown as ListedBooking[];
-  }
-
-  private async somaDuracao(servicoId: string): Promise<number> {
-    if (!servicoId) {
-      return 0;
-    }
+  private async somaDuracao(servicoId: string) {
     const { data, error } = await this.supabase
       .from('agend_servico')
       .select('duracao_min')
       .eq('id', servicoId)
       .single();
 
-    if (error) {
-      console.error('Erro ao buscar duração do serviço:', error);
-      throw error;
-    }
+    if (error) throw error;
     return data ? data.duracao_min : 0;
   }
 
-  async cancelBooking(id: string, cancelHash: string) {
-    const { error } = await this.supabase
-      .rpc('agend_cancelar', { _id: id, _hash: cancelHash });
+  /* lista completa – opcional */
+  async getAllBookings() {
+    const { data, error } = await this.supabase
+      .from('agend_agendamento')
+      .select(SELECT_COLUMNS)
+      .order('inicio', { ascending: false });
 
-    if (error) {
-      console.error('Erro ao cancelar agendamento via RPC:', error);
-      throw error;
-    }
-    return true;
+    if (error) throw error;
+    return data as unknown as ListedBooking[];
   }
 }

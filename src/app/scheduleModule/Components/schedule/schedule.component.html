@@ -1,4 +1,6 @@
 <!-- ============ LISTA ============ -->
+<p-toast position="bottom-center"></p-toast>
+
 <div *ngIf="view !== 'create'" class=" full-height">
 
   <!-- Header -->
@@ -11,14 +13,100 @@
   <!-- Tabs -->
   <ul class="tabs p-4">
     <li [class.active]="tabIndex===0" (click)="tabIndex=0">Agendados</li>
-    <li [class.active]="tabIndex===1" (click)="tabIndex=1">Anteriores</li>
+    <li [class.active]="tabIndex===1" (click)="tabIndex=1">cancelados</li>
   </ul>
+  <!-- ANTERIORES -->
+  <div *ngIf="tabIndex === 1">
+    <div *ngIf="agendamentosAnteriores().length > 0; else semAnteriores" class="bookings-list">
+      <div *ngFor="let a of agendamentosAnteriores()" class="booking-card opacity-50">
+        <div class="card-header">
+          <h4>{{ a.agend_servico?.nome || 'Serviço não informado' }}</h4>
+        </div>
 
-  <!-- Estado vazio -->
-  <div class="empty-box">
-    <i class="fas fa-calendar-times big-icon"></i>
-    <p>Você não tem nenhum agendamento marcado</p>
+        <div class="card-details">
+          <p><strong>Data:</strong> {{ dayjs(a.inicio).format('DD/MM/YYYY') }}</p>
+          <p><strong>Hora:</strong> {{ dayjs(a.inicio).format('HH:mm') }}</p>
+          <p><strong>Profissional:</strong> {{ a.agend_profissional?.nome || 'N/A' }}</p>
+          <p><strong>Filial:</strong> {{ a.agend_filial?.nome || 'N/A' }}</p>
+          <p class="muted" style="color: gray;">Status: {{ a.status }}</p>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #semAnteriores>
+      <div class="no-bookings">
+        <i class="fas fa-history big-icon"></i>
+        <p>Nenhum agendamento cancelado encontrado</p>
+      </div>
+    </ng-template>
   </div>
+  <!-- ========== CANCELAR AGENDAMENTO ========== -->
+  <p-dialog [visible]="showCancelDialog()" modal [closable]="false"
+    [style]="{ background:'#fff', padding:'20px', borderRadius:'14px', width:'330px', minHeight:'370px' }"
+    [maskStyle]="{ 'backdrop-filter':'blur(5px)', background:'rgba(0,0,0,.15)' }">
+
+    <button class="dialog-close-x" (click)="cancelDialogClose()" aria-label="Fechar">&times;</button>
+
+    <!-- dentro do p-dialog de cancelamento -->
+    <!-- dentro do <p-dialog> de cancelamento -->
+    <div *ngIf="bookingToCancel" class="cancel-dialog-content">
+      <p>
+        Informe o CPF usado no agendamento para confirmar o cancelamento
+        de <strong>{{ bookingToCancel.cliente_nome }}</strong>.
+      </p>
+      <div
+        style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px; align-items: start;justify-content: start;">
+        <label for="cpf">CPF</label>
+
+        <p-inputMask id="cpf" type="text" mask="999.999.999-99" unmask="true" [(ngModel)]="clienteCPF"
+          placeholder="000.000.000-00" class="cpf-confirm">
+        </p-inputMask>
+      </div>
+
+
+      <button pButton label="Cancelar Agendamento" (click)="confirmCancelBooking()" [disabled]="clienteCPF.length!==11"
+        style="position:fixed;bottom:20px;left:16px;right:16px;color:#fff;height:50px;border-radius:10px;max-width:calc(100% - 32px);margin:0 auto; transition: background-color 0.3s, opacity 0.3s;"
+        [style.background]="clienteCPF.length !== 11 ? '#999' : '#000'"
+        [style.opacity]="clienteCPF.length !== 11 ? '0.7' : '1'">
+      </button>
+    </div>
+
+
+  </p-dialog>
+
+  <!-- AGENDADOS -->
+  <div *ngIf="tabIndex === 0">
+    <div *ngIf="agendamentosConfirmados().length > 0; else semAgendamentos" class="bookings-list">
+      <div *ngFor="let a of agendamentosConfirmados()" class="booking-card">
+        <div class="card-header">
+          <h4>{{ a.agend_servico?.nome || 'Serviço não informado' }}</h4>
+        </div>
+
+        <div class="card-details">
+          <p><strong>Data:</strong> {{ dayjs(a.inicio).format('DD/MM/YYYY') }}</p>
+          <p><strong>Hora:</strong> {{ dayjs(a.inicio).format('HH:mm') }}</p>
+          <p><strong>Profissional:</strong> {{ a.agend_profissional?.nome || 'N/A' }}</p>
+          <p><strong>Filial:</strong> {{ a.agend_filial?.nome || 'N/A' }}</p>
+        </div>
+        <div class="card-footer">
+          <button pButton icon="pi pi-times" label="Cancelar" class="p-button-danger p-button-outlined"
+            (click)="openCancelDialog(a)" [disabled]="!a.cancel_hash || a.status === 'cancelled'">
+          </button>
+        </div>
+
+
+      </div>
+    </div>
+
+    <ng-template #semAgendamentos>
+      <div class="no-bookings">
+        <i class="fas fa-calendar-times big-icon"></i>
+        <p>Você não tem nenhum agendamento marcado</p>
+      </div>
+    </ng-template>
+  </div>
+
+
 
   <!-- Botão -->
   <div class="p-4"> <button class="new-btn " (click)="openCreate()">+ Novo agendamento</button>
@@ -195,8 +283,12 @@
 
   <label for="cpf">CPF</label>
   <p-inputMask id="cpf" type="text" mask="999.999.999-99" unmask="true" [(ngModel)]="clienteCPF"
-    placeholder="000.000.000-00" class="cpf">
+    placeholder="000.000.000-00" class="cpf" (ngModelChange)="onCpfChange($event)">
   </p-inputMask>
+  <small *ngIf="cpfTouched() && !cpfValido()" class="cpf-error">
+    CPF inválido
+  </small>
+
   <button pButton label="Continuar" class="continue" [disabled]="!clienteNome || clienteCPF.length!==11"
     (click)="onNomeDlgContinue()"></button>
 </p-dialog>

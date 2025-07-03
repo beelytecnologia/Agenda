@@ -1,27 +1,36 @@
 <p-toast position="bottom-center"></p-toast>
-<p-dialog header="" [visible]="showCancelDialog()" (visibleChange)="showCancelDialog.set($event)" [modal]="true"
+
+<!-- Modal de Cancelamento -->
+<p-dialog [visible]="showCancelDialog()" (visibleChange)="showCancelDialog.set($event)" [modal]="true"
   [closable]="false"
   [style]="{ background:'#fff', padding:'20px', borderRadius:'14px', width:'330px', minHeight:'300px' }"
   [maskStyle]="{ 'backdrop-filter':'blur(5px)', background:'rgba(0,0,0,.15)' }">
-
-  <!-- Botão X no topo direito -->
-  <button type="button" class="dialog-close-x" (click)="cancelDialogClose()" aria-label="Fechar">
-    &times;
-  </button>
+  <button class="dialog-close-x" (click)="cancelDialogClose()" aria-label="Fechar">&times;</button>
 
   <div *ngIf="bookingToCancel" class="cancel-dialog-content">
-    <p>
-      Tem certeza que deseja cancelar o agendamento para
-      <strong>{{ bookingToCancel.cliente_nome }}</strong>?
-    </p>
-    <button pButton label="Cancelar Agendamento" (click)="confirmCancelBooking()" style="position:fixed;bottom:20px;left:16px;right:16px;background:#000;color:#fff;
-    height:50px;border-radius:10px;z-index:1000;max-width:calc(100% - 32px);margin:0 auto;"></button>
+    <p>Tem certeza que deseja cancelar o agendamento para <strong>{{ bookingToCancel.cliente_nome }}</strong>?</p>
+
+    <button pButton label="Cancelar Agendamento" (click)="confirmCancelBooking()" style="
+        position: fixed;
+        bottom: 20px;
+        left: 16px;
+        right: 16px;
+        background: #000;
+        color: #fff;
+        height: 50px;
+        border-radius: 10px;
+        z-index: 1000;
+        max-width: calc(100% - 32px);
+        margin: 0 auto;
+      "></button>
   </div>
 </p-dialog>
+
+<!-- Conteúdo -->
 <div class="container">
   <div class="header">
     <h2>Meus Agendamentos</h2>
-    <a routerLink="/schedule/teste-insano" pButton label="Fazer novo Agendamento" icon="pi pi-plus"></a>
+    <!-- <a routerLink="/schedule/teste-insano" pButton label="Fazer novo Agendamento" icon="pi pi-plus"></a> -->
   </div>
 
   <div *ngIf="isLoading()" class="loading">
@@ -38,10 +47,11 @@
   </div>
 
   <div *ngIf="!isLoading() && !errorLoading() && bookings().length > 0" class="bookings-list">
-    <div *ngFor="let booking of bookings()" class="booking-card">
+    <div *ngFor="let booking of bookings()" class="booking-card" [class.opacity-50]="booking.status === 'cancelled'">
       <div class="card-header">
         <h4>{{ booking.agend_servico?.nome || 'Serviço não informado' }}</h4>
       </div>
+
       <div class="card-details">
         <p><strong>Cliente:</strong> {{ booking.cliente_nome || 'N/A' }}</p>
         <p><strong>Profissional:</strong> {{ booking.agend_profissional?.nome || 'N/A' }}</p>
@@ -49,11 +59,18 @@
         <p><strong>Início:</strong> {{ formatDate(booking.inicio) }}</p>
         <p><strong>Fim:</strong> {{ formatDate(booking.fim) }}</p>
       </div>
+
       <div class="card-footer">
-        <button pButton type="button" label="Cancelar Agendamento" icon="pi pi-times"
-          class="p-button-danger p-button-outlined" (click)="openCancelDialog(booking)"
-          [disabled]="!booking.cancel_hash">
-        </button>
+        <!-- Status cancelado -->
+        <div *ngIf="booking.status === 'cancelled'" class="status-cancelled">
+          <i class="pi pi-ban"></i>
+          <span>Agendamento cancelado</span>
+        </div>
+
+        <!-- Botão de cancelamento -->
+        <button *ngIf="booking.status !== 'cancelled'" pButton type="button" label="Cancelar Agendamento"
+          icon="pi pi-times" class="p-button-danger p-button-outlined" (click)="openCancelDialog(booking)"
+          [disabled]="!booking.cancel_hash"></button>
       </div>
     </div>
   </div>

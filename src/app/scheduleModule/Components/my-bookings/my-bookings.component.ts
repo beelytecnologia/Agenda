@@ -10,10 +10,13 @@ import dayjs from 'dayjs';
 import { switchMap, tap } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
 
+// Cria um novo tipo que estende ListedBooking e adiciona a propriedade 'status'
+type BookingWithStatus = ListedBooking & { status?: 'confirmed' | 'cancelled' };
+
 @Component({
   selector: 'app-my-bookings',
   standalone: true,
-  imports: [CommonModule, ButtonModule, RouterLink, ToastModule, DialogModule],
+  imports: [CommonModule, ButtonModule, ToastModule, DialogModule],
   providers: [MessageService],
   templateUrl: './my-bookings.component.html',
   styleUrls: ['./my-bookings.component.css']
@@ -22,14 +25,17 @@ export class MyBookingsComponent implements OnInit {
   private api = inject(SupabaseAgendaService);
   private route = inject(ActivatedRoute);
   private messageService = inject(MessageService);
-  bookings = signal<ListedBooking[]>([]);
+
+  // Usa o novo tipo BookingWithStatus para o signal de bookings
+  bookings = signal<BookingWithStatus[]>([]);
   isLoading = signal(true);
   errorLoading = signal<string | null>(null);
   private routeSub: Subscription | undefined;
 
   // Controle do modal
   showCancelDialog = signal(false);
-  bookingToCancel: ListedBooking | null = null;
+  // Usa o novo tipo aqui também
+  bookingToCancel: BookingWithStatus | null = null;
 
   ngOnInit() {
     this.loadBookingFromRoute();
@@ -56,7 +62,19 @@ export class MyBookingsComponent implements OnInit {
       })
     ).subscribe({
       next: (data) => {
-        this.bookings.set(data ? [data] : []);
+        this.bookings.set(
+          data
+            ? [
+                {
+                  ...data,
+                  status:
+                    data.status === 'confirmed' || data.status === 'cancelled'
+                      ? data.status
+                      : undefined,
+                },
+              ]
+            : []
+        );
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -66,7 +84,7 @@ export class MyBookingsComponent implements OnInit {
     });
   }
 
-  openCancelDialog(booking: ListedBooking) {
+  openCancelDialog(booking: BookingWithStatus) {
     if (!booking.cancel_hash) {
       this.messageService.add({ severity: 'warn', summary: 'Atenção', detail: 'Este agendamento não pode ser cancelado.' });
       return;
@@ -76,12 +94,29 @@ export class MyBookingsComponent implements OnInit {
   }
 
   async confirmCancelBooking() {
-    if (!this.bookingToCancel) return;
+    if (!this.bookingToCancel || !this.bookingToCancel.cancel_hash) return;
+    const { id, cancel_hash } = this.bookingToCancel;
+
     try {
-      await this.api.cancelBooking(this.bookingToCancel.id, this.bookingToCancel.cancel_hash);
+      // 1. Cancela no Supabase
+      await this.api.cancelBooking(id, cancel_hash);
+
+      // 2. Dispara o webhook de cancelamento
+      await fetch('https://n8n.grupobeely.com.br/webhook/cancelado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancel_hash })
+      });
+
       this.messageService.add({ severity: 'success', summary: 'Cancelado', detail: 'Agendamento cancelado com sucesso!' });
-      this.bookings.set([]); // Limpa o agendamento da tela
+
+      // 3. Atualiza o status na tela para 'cancelled' em vez de remover
+      this.bookings.update(bookings =>
+        bookings.map(b => (b.id === id ? { ...b, status: 'cancelled' } : b))
+      );
+
     } catch (error) {
+      console.error('Falha ao cancelar o agendamento:', error);
       this.messageService.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao cancelar o agendamento.' });
     } finally {
       this.showCancelDialog.set(false);
@@ -104,4 +139,4 @@ export class MyBookingsComponent implements OnInit {
       this.routeSub.unsubscribe();
     }
   }
-}
+  }

@@ -150,3 +150,21 @@
 .dialog-close-x:hover {
   color: #000;
 }
+.status-cancelled {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--danger-color, #dc3545);
+  font-weight: 500;
+  background-color: var(--danger-light-color, #f8d7da);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+}
+
+.status-cancelled .pi {
+  font-size: 1.1rem;
+}
+.booking-card.opacity-50 {
+  opacity: 0.7;
+  pointer-events: none;
+}
